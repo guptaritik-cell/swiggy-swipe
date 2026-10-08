@@ -1,0 +1,6 @@
+{
+  "name": "Swiggy-Inspired Product Motion & Details Flow",
+  "description": "High-fidelity interactive product listing opening animation, carousel swipe, drag-to-close gesture, and scroll-up detail expansion with real-time tuning controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

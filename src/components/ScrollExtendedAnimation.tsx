@@ -373,8 +373,8 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
         onUpdateTuning({
           ...tuning,
           selectedPreset: 'swiggy',
-          springStiffness: 340,
-          springDamping: 28,
+          springStiffness: 320,
+          springDamping: 36,
           springMass: 0.85,
           dragCloseThreshold: 110,
           dragVelocityThreshold: 480,

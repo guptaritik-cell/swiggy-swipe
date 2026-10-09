@@ -94,13 +94,13 @@ export interface AnimationTuningConfig {
 }
 
 export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
-  springStiffness: 340,
-  springDamping: 28,
+  springStiffness: 320,
+  springDamping: 36,
   springMass: 0.85,
   dragCloseThreshold: 110,
   dragVelocityThreshold: 480,
   carouselSensitivity: 60,
-  carouselSpringBounce: 0.15,
+  carouselSpringBounce: 0.08,
   scrollCollapseDistance: 170,
   headerMinScale: 0.75,
   headerMinHeight: 200,

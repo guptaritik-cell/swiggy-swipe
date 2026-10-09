@@ -451,12 +451,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     }
   };
 
-  // High-smoothness spring physics for shared-element morphing
-  const sharedSpringTransition = {
+  // High-smoothness spring physics with reduced bounce
+  const smoothSpringTransition = {
     type: 'spring' as const,
     stiffness: tuning.springStiffness || 320,
-    damping: tuning.springDamping || 28,
-    mass: tuning.springMass || 0.8,
+    damping: Math.max(tuning.springDamping || 36, 34),
+    mass: 0.8,
   };
 
   return (
@@ -531,7 +531,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
           </div>
         </div>
 
-        {/* 2-Column Product Grid (Cards with shared layoutId) */}
+        {/* 2-Column Product Grid (Cards with shared layoutId for small-to-big expansion) */}
         <div className="grid grid-cols-2 gap-2.5 px-3">
           {products.map((product, idx) => {
             const isLiked = wishlist[product.id] || false;
@@ -544,7 +544,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               <motion.div
                 key={`grid-item-${product.id}`}
                 layoutId={`product-card-${product.id}`}
-                transition={sharedSpringTransition}
+                transition={smoothSpringTransition}
                 onClick={() => handleOpenProduct(idx)}
                 style={{
                   opacity: isSelectedOpen ? 0 : 1,
@@ -554,9 +554,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               >
                 {/* 1:1 Square Image */}
                 <div className="relative w-full aspect-square bg-[#1C1C1E] overflow-hidden rounded-[12px]">
-                  <motion.img
-                    layoutId={`product-image-${product.id}`}
-                    transition={sharedSpringTransition}
+                  <img
                     src={product.images}
                     alt={product.title}
                     referrerPolicy="no-referrer"
@@ -632,20 +630,19 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* EXPANDING INDIVIDUAL PRODUCT PAGE OVERLAY (PDP)          */}
-      {/* Expands from grid item directly into full screen        */}
-      {/* On pull down at top: card moves down, then collapses back*/}
+      {/* INDIVIDUAL PRODUCT PAGE OVERLAY (PDP)                    */}
+      {/* Shared-element expansion from small card to full screen  */}
       {/* ======================================================== */}
       <AnimatePresence>
         {currentProduct && activeIndex !== null && (
           <motion.div
-            key={`pdp-overlay-${currentProduct.id}`}
+            key="pdp-modal-overlay"
             layoutId={`product-card-${currentProduct.id}`}
-            transition={sharedSpringTransition}
+            transition={smoothSpringTransition}
             animate={{
               y: dragY,
-              scale: 1 - Math.min(dragY / 1200, 0.08),
-              borderRadius: Math.min(24, Math.max(0, dragY * 0.4)),
+              scale: 1 - Math.min(dragY / 1200, 0.04),
+              borderRadius: Math.min(24, Math.max(0, dragY * 0.3)),
             }}
             className={`absolute inset-0 z-50 flex flex-col bg-[#0D0D0D] overflow-hidden ${
               tuning.enableBackdropBlur ? 'backdrop-blur-xl' : ''
@@ -661,8 +658,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   exit={{ y: -24, opacity: 0 }}
                   transition={{
                     type: 'spring',
-                    stiffness: 350,
-                    damping: 28,
+                    stiffness: 340,
+                    damping: 34,
                   }}
                   className="absolute top-2 left-0 right-0 z-50 pointer-events-none flex items-center justify-center gap-1.5 py-0.5 select-none"
                 >
@@ -684,7 +681,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 y: nudgeShiftY,
                 opacity: isClosing ? 0 : 1,
               }}
-              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 36 }}
               className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3.5 border-b pointer-events-none"
               style={{
                 pointerEvents: isScrolled ? 'auto' : 'none',
@@ -698,7 +695,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   x: isScrolled ? 0 : -8,
                   pointerEvents: isScrolled ? 'auto' : 'none',
                 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
                 onClick={() => {
                   if (scrollTop > 20 && scrollContainerRef.current) {
                     scrollContainerRef.current.scrollTo({
@@ -718,7 +715,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               {/* Center to Top-Right: Cart + POPcoin Badge */}
               <motion.div
                 layout
-                transition={{ type: 'spring', stiffness: 320, damping: 26 }}
+                transition={{ type: 'spring', stiffness: 320, damping: 34 }}
                 className={`flex items-center gap-2 pointer-events-auto ${
                   isScrolled ? 'ml-auto mt-0' : 'mx-auto mt-10'
                 }`}
@@ -764,7 +761,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               animate={{
                 y: nudgeShiftY,
               }}
-              transition={{ type: 'spring', stiffness: 340, damping: 28 }}
+              transition={{ type: 'spring', stiffness: 340, damping: 36 }}
               className="flex-1 flex flex-col overflow-hidden relative bg-[#0D0D0D]"
             >
               {/* PULL INDICATOR BAR (Visible when card goes down) */}
@@ -813,29 +810,15 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                               : 'opacity-70 hover:opacity-90'
                           }`}
                         >
-                          {i === 0 ? (
-                            <motion.img
-                              layoutId={`product-image-${currentProduct.id}`}
-                              transition={sharedSpringTransition}
-                              src={imgUrl}
-                              alt={`Photo ${i + 1}`}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover object-center pointer-events-none select-none"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = APP_ASSETS.productImage2;
-                              }}
-                            />
-                          ) : (
-                            <img
-                              src={imgUrl}
-                              alt={`Photo ${i + 1}`}
-                              referrerPolicy="no-referrer"
-                              className="w-full h-full object-cover object-center pointer-events-none select-none"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = APP_ASSETS.productImage2;
-                              }}
-                            />
-                          )}
+                          <img
+                            src={imgUrl}
+                            alt={`Photo ${i + 1}`}
+                            referrerPolicy="no-referrer"
+                            className="w-full h-full object-cover object-center pointer-events-none select-none"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).src = APP_ASSETS.productImage2;
+                            }}
+                          />
                         </div>
                       ))}
                     </div>
@@ -857,7 +840,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                         paddingLeft: isScrolled ? 16 : 24,
                         paddingRight: isScrolled ? 16 : 24,
                       }}
-                      transition={{ type: 'spring', stiffness: 320, damping: 28 }}
+                      transition={{ type: 'spring', stiffness: 320, damping: 36 }}
                       className="relative z-20 flex items-center justify-between pointer-events-auto"
                     >
                       <motion.div
@@ -928,7 +911,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     {/* SWIPEABLE CONTENT WRAPPER */}
                     <motion.div
                       animate={{ x: contentDragX }}
-                      transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                      transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.7 }}
                       onPointerDown={handleContentPointerDown}
                       onPointerMove={handleContentPointerMove}
                       onPointerUp={handleContentPointerUp}
@@ -1103,7 +1086,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               {/* Add to cart Button */}
               <motion.button
                 layout
-                transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
                 className="w-full h-12 rounded-full text-[#000000] font-bold text-sm flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] transition-transform mb-3"
                 style={{
                   background: 'linear-gradient(180deg, #FFFFFF 0%, #D4D4D8 100%)',
@@ -1124,7 +1107,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   marginTop: isScrolled ? 0 : 4,
                   pointerEvents: isScrolled ? 'none' : 'auto',
                 }}
-                transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
                 onPointerDown={handleDockPointerDown}
                 onPointerMove={handleDockPointerMove}
                 onPointerUp={handleDockPointerUp}
@@ -1140,8 +1123,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   }}
                   transition={{
                     type: 'spring',
-                    stiffness: 340,
-                    damping: 30,
+                    stiffness: 320,
+                    damping: 36,
                     mass: 0.8,
                   }}
                 >

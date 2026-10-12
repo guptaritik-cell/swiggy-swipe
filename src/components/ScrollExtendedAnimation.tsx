@@ -24,7 +24,10 @@ import {
   Star,
   Sliders,
   RotateCcw as ResetIcon,
-  Zap
+  Zap,
+  Play,
+  Save,
+  Check
 } from 'lucide-react';
 import { ProductItem, AnimationTuningConfig } from '../types/product';
 import { APP_ASSETS } from '../data/productsData';
@@ -346,26 +349,41 @@ interface TuningSidebarProps {
   tuning: AnimationTuningConfig;
   onUpdateTuning: (newTuning: AnimationTuningConfig) => void;
   onResetTuning: () => void;
+  onSaveDefaultTuning?: (savedTuning: AnimationTuningConfig) => void;
   activeDataset: 'featured' | 'technosport' | 'fastandup';
   onDatasetChange: (dataset: 'featured' | 'technosport' | 'fastandup') => void;
   currentMode: 'all' | 'core' | 'scroll';
   onModeChange: (mode: 'all' | 'core' | 'scroll') => void;
   realtimeY?: number;
   realtimeScroll?: number;
+  onReplayAnimation?: () => void;
 }
 
 export const TuningSidebar: React.FC<TuningSidebarProps> = ({
   tuning,
   onUpdateTuning,
   onResetTuning,
+  onSaveDefaultTuning,
   activeDataset,
   onDatasetChange,
   currentMode,
   onModeChange,
   realtimeY = 0,
   realtimeScroll = 0,
+  onReplayAnimation,
 }) => {
   const [collapsed, setCollapsed] = useState<boolean>(false);
+  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+
+  const handleSave = () => {
+    if (onSaveDefaultTuning) {
+      onSaveDefaultTuning(tuning);
+    }
+    setSaveSuccess(true);
+    setTimeout(() => {
+      setSaveSuccess(false);
+    }, 2000);
+  };
 
   const applyPreset = (presetKey: AnimationTuningConfig['selectedPreset']) => {
     switch (presetKey) {
@@ -380,6 +398,23 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           dragVelocityThreshold: 480,
           carouselSensitivity: 60,
           scrollCollapseDistance: 170,
+          addToCartStartY: -380,
+          addToCartDuration: 0.42,
+          addToCartDelay: 0.10,
+          addToCartStartOpacity: 0.0,
+          addToCartEndOpacity: 1.0,
+          contentSlideDistance: 240,
+          contentDuration: 0.55,
+          contentDelay: 0.42,
+          contentStartOpacity: 0.0,
+          bottomCirclesDistance: 280,
+          bottomCirclesDuration: 0.58,
+          bottomCirclesDelay: 0.42,
+          bottomCirclesBounce: 0.25,
+          bottomCirclesStiffness: 240,
+          bottomCirclesDamping: 18,
+          bottomCirclesMass: 0.8,
+          bottomCirclesStartOpacity: 0.0,
         });
         break;
       case 'bouncy':
@@ -393,6 +428,23 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           dragVelocityThreshold: 350,
           carouselSensitivity: 50,
           scrollCollapseDistance: 150,
+          addToCartStartY: -400,
+          addToCartDuration: 0.45,
+          addToCartDelay: 0.10,
+          addToCartStartOpacity: 0.0,
+          addToCartEndOpacity: 1.0,
+          contentSlideDistance: 260,
+          contentDuration: 0.60,
+          contentDelay: 0.40,
+          contentStartOpacity: 0.0,
+          bottomCirclesDistance: 320,
+          bottomCirclesDuration: 0.65,
+          bottomCirclesDelay: 0.38,
+          bottomCirclesBounce: 0.45,
+          bottomCirclesStiffness: 300,
+          bottomCirclesDamping: 14,
+          bottomCirclesMass: 0.8,
+          bottomCirclesStartOpacity: 0.0,
         });
         break;
       case 'snappy':
@@ -406,6 +458,23 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           dragVelocityThreshold: 300,
           carouselSensitivity: 40,
           scrollCollapseDistance: 140,
+          addToCartStartY: -320,
+          addToCartDuration: 0.28,
+          addToCartDelay: 0.05,
+          addToCartStartOpacity: 0.0,
+          addToCartEndOpacity: 1.0,
+          contentSlideDistance: 160,
+          contentDuration: 0.35,
+          contentDelay: 0.25,
+          contentStartOpacity: 0.0,
+          bottomCirclesDistance: 200,
+          bottomCirclesDuration: 0.38,
+          bottomCirclesDelay: 0.25,
+          bottomCirclesBounce: 0.15,
+          bottomCirclesStiffness: 350,
+          bottomCirclesDamping: 24,
+          bottomCirclesMass: 0.7,
+          bottomCirclesStartOpacity: 0.0,
         });
         break;
       case 'smooth':
@@ -419,6 +488,23 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           dragVelocityThreshold: 600,
           carouselSensitivity: 80,
           scrollCollapseDistance: 210,
+          addToCartStartY: -420,
+          addToCartDuration: 0.52,
+          addToCartDelay: 0.15,
+          addToCartStartOpacity: 0.0,
+          addToCartEndOpacity: 1.0,
+          contentSlideDistance: 280,
+          contentDuration: 0.68,
+          contentDelay: 0.50,
+          contentStartOpacity: 0.0,
+          bottomCirclesDistance: 320,
+          bottomCirclesDuration: 0.68,
+          bottomCirclesDelay: 0.48,
+          bottomCirclesBounce: 0.18,
+          bottomCirclesStiffness: 200,
+          bottomCirclesDamping: 22,
+          bottomCirclesMass: 0.9,
+          bottomCirclesStartOpacity: 0.0,
         });
         break;
       default:
@@ -453,18 +539,54 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
       {!collapsed && (
         <div className="flex-1 overflow-y-auto p-4 space-y-4 no-scrollbar text-xs bg-[#0D0D0D]">
           
-          {/* Preset Buttons */}
+          {/* Replay Entrance Animation Button */}
+          {onReplayAnimation && (
+            <button
+              onClick={onReplayAnimation}
+              className="w-full py-2.5 px-3 rounded-[10px] bg-gradient-to-r from-purple-600 via-pink-600 to-amber-500 hover:from-purple-500 hover:via-pink-500 hover:to-amber-400 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg shadow-purple-900/40 active:scale-[0.98] transition-all cursor-pointer select-none"
+            >
+              <Play size={14} className="fill-white" />
+              <span>Replay Entrance Animation</span>
+            </button>
+          )}
+
+          {/* Preset Buttons & Save / Reset Actions */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="font-semibold text-[11px] uppercase tracking-wider text-[#A1A1AA]">
                 Animation Presets
               </span>
-              <button
-                onClick={onResetTuning}
-                className="text-[10px] text-[#71717A] hover:text-[#FFFFFF] flex items-center gap-1 transition-colors"
-              >
-                <ResetIcon size={10} /> Reset
-              </button>
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={handleSave}
+                  className={`text-[10px] px-2 py-0.5 rounded-[5px] border flex items-center gap-1 font-semibold transition-all cursor-pointer ${
+                    saveSuccess
+                      ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                      : 'bg-[#1C1C1E] border-[#2E2E32] text-amber-400 hover:text-amber-300 hover:border-amber-400/40'
+                  }`}
+                  title="Save current values as default"
+                >
+                  {saveSuccess ? (
+                    <>
+                      <Check size={11} className="text-emerald-400" />
+                      <span>Saved!</span>
+                    </>
+                  ) : (
+                    <>
+                      <Save size={11} className="text-amber-400" />
+                      <span>Save as Default</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  onClick={onResetTuning}
+                  className="text-[10px] text-[#71717A] hover:text-[#FFFFFF] flex items-center gap-1 transition-colors px-1.5 py-0.5"
+                  title="Reset to default values"
+                >
+                  <ResetIcon size={10} /> Reset
+                </button>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 gap-1.5">
@@ -599,6 +721,248 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
                 value={tuning.dragCloseThreshold}
                 onChange={(e) => onUpdateTuning({ ...tuning, dragCloseThreshold: Number(e.target.value), selectedPreset: 'custom' })}
                 className="w-full accent-white bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* ======================================================== */}
+          {/* ENTRANCE CHOREOGRAPHY TUNING CONTROLS                   */}
+          {/* ======================================================== */}
+          
+          {/* 1. Add to Cart Button (Top to Bottom) */}
+          <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
+            <div>
+              <span className="font-semibold text-[11px] uppercase tracking-wider text-purple-400 block">
+                1. "Add to Cart" Motion (Top → Bottom)
+              </span>
+              <span className="text-[10px] text-[#71717A] block">Travels from top to bottom (0% to 100% opacity)</span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Start Offset Y</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.addToCartStartY} px</span>
+              </div>
+              <input
+                type="range"
+                min="-600"
+                max="-100"
+                step="10"
+                value={tuning.addToCartStartY}
+                onChange={(e) => onUpdateTuning({ ...tuning, addToCartStartY: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-purple-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Travel Duration</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.addToCartDuration.toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.15"
+                max="0.90"
+                step="0.02"
+                value={tuning.addToCartDuration}
+                onChange={(e) => onUpdateTuning({ ...tuning, addToCartDuration: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-purple-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Start Delay</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.addToCartDelay.toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.00"
+                max="0.60"
+                step="0.01"
+                value={tuning.addToCartDelay}
+                onChange={(e) => onUpdateTuning({ ...tuning, addToCartDelay: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-purple-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Start Opacity</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{(tuning.addToCartStartOpacity * 100).toFixed(0)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.00"
+                max="1.00"
+                step="0.05"
+                value={tuning.addToCartStartOpacity}
+                onChange={(e) => onUpdateTuning({ ...tuning, addToCartStartOpacity: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-purple-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* 2. Content Below Title (Purple Banner, Size, Details) */}
+          <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
+            <div>
+              <span className="font-semibold text-[11px] uppercase tracking-wider text-emerald-400 block">
+                2. Content Below Image (Bottom → Top)
+              </span>
+              <span className="text-[10px] text-[#71717A] block">Purple banner, size & details glide smoothly behind button</span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Slide Up Distance</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.contentSlideDistance} px</span>
+              </div>
+              <input
+                type="range"
+                min="50"
+                max="450"
+                step="10"
+                value={tuning.contentSlideDistance}
+                onChange={(e) => onUpdateTuning({ ...tuning, contentSlideDistance: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Entrance Duration</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.contentDuration.toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.20"
+                max="1.00"
+                step="0.02"
+                value={tuning.contentDuration}
+                onChange={(e) => onUpdateTuning({ ...tuning, contentDuration: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Entrance Delay</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.contentDelay.toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.05"
+                max="0.80"
+                step="0.01"
+                value={tuning.contentDelay}
+                onChange={(e) => onUpdateTuning({ ...tuning, contentDelay: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Start Opacity</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{(tuning.contentStartOpacity * 100).toFixed(0)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.00"
+                max="1.00"
+                step="0.05"
+                value={tuning.contentStartOpacity}
+                onChange={(e) => onUpdateTuning({ ...tuning, contentStartOpacity: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* 3. Bottom Circles Carousel (Slide Right to Left with Bounce) */}
+          <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
+            <div>
+              <span className="font-semibold text-[11px] uppercase tracking-wider text-sky-400 block">
+                3. Bottom Circles (Right → Left + Bounce)
+              </span>
+              <span className="text-[10px] text-[#71717A] block">Parallel slide with spring bounce</span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Slide Distance (X)</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.bottomCirclesDistance} px</span>
+              </div>
+              <input
+                type="range"
+                min="100"
+                max="500"
+                step="10"
+                value={tuning.bottomCirclesDistance}
+                onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesDistance: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Slide Delay</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.bottomCirclesDelay.toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.05"
+                max="0.80"
+                step="0.01"
+                value={tuning.bottomCirclesDelay}
+                onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesDelay: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Spring Bounce</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{(tuning.bottomCirclesBounce * 100).toFixed(0)}%</span>
+              </div>
+              <input
+                type="range"
+                min="0.00"
+                max="0.60"
+                step="0.05"
+                value={tuning.bottomCirclesBounce}
+                onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesBounce: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Spring Stiffness</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.bottomCirclesStiffness}</span>
+              </div>
+              <input
+                type="range"
+                min="100"
+                max="500"
+                step="10"
+                value={tuning.bottomCirclesStiffness}
+                onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesStiffness: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Spring Damping</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.bottomCirclesDamping}</span>
+              </div>
+              <input
+                type="range"
+                min="10"
+                max="40"
+                step="1"
+                value={tuning.bottomCirclesDamping}
+                onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesDamping: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
               />
             </div>
           </div>

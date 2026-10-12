@@ -35,10 +35,11 @@ interface CoreProductAnimationProps {
   products: ProductItem[];
   tuning: AnimationTuningConfig;
   onProductSelect?: (product: ProductItem | null) => void;
-  activeProductIndex?: number;
+  activeProductIndex?: number | null;
   onActiveIndexChange?: (index: number) => void;
   renderScrollDetails?: (product: ProductItem, isScrolledUp: boolean, onExpand?: () => void) => React.ReactNode;
   onScrollDelta?: (scrollTop: number) => void;
+  replayTrigger?: number;
 }
 
 export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
@@ -49,6 +50,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   onActiveIndexChange,
   renderScrollDetails,
   onScrollDelta,
+  replayTrigger,
 }) => {
   const [internalIndex, setInternalIndex] = useState<number | null>(null);
   const activeIndex = externalIndex !== undefined ? externalIndex : internalIndex;
@@ -74,6 +76,63 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
   // Real-time drag offset for bottom dock
   const [dockDragOffset, setDockDragOffset] = useState<number>(0);
+
+  // Entrance choreography tracking (true only during card open from PLP or replay)
+  const [animationKey, setAnimationKey] = useState<number>(0);
+  const [entranceStep, setEntranceStep] = useState<number>(0);
+  const [isEntrancePhase, setIsEntrancePhase] = useState<boolean>(false);
+  const prevIndexRef = useRef<number | null>(null);
+  const prevReplayRef = useRef<number | undefined>(replayTrigger);
+
+  const startEntranceChoreography = useCallback(() => {
+    setAnimationKey(prev => prev + 1);
+    setEntranceStep(0);
+    setIsEntrancePhase(true);
+    const stepTimer = setTimeout(() => {
+      setEntranceStep(1);
+    }, 40);
+
+    const totalDuration = Math.max(
+      tuning.addToCartDelay + tuning.addToCartDuration,
+      tuning.contentDelay + tuning.contentDuration,
+      tuning.bottomCirclesDelay + tuning.bottomCirclesDuration
+    );
+    const phaseTimer = setTimeout(() => {
+      setIsEntrancePhase(false);
+    }, (totalDuration + 0.35) * 1000);
+
+    return () => {
+      clearTimeout(stepTimer);
+      clearTimeout(phaseTimer);
+    };
+  }, [
+    tuning.addToCartDelay,
+    tuning.addToCartDuration,
+    tuning.contentDelay,
+    tuning.contentDuration,
+    tuning.bottomCirclesDelay,
+    tuning.bottomCirclesDuration,
+  ]);
+
+  useEffect(() => {
+    const wasClosed = prevIndexRef.current === null || prevIndexRef.current === -1;
+    const isNowOpen = activeIndex !== null && activeIndex >= 0;
+    prevIndexRef.current = activeIndex;
+
+    const replayChanged = replayTrigger !== undefined && replayTrigger !== prevReplayRef.current;
+    prevReplayRef.current = replayTrigger;
+
+    if ((wasClosed && isNowOpen) || (isNowOpen && replayChanged)) {
+      return startEntranceChoreography();
+    } else if (!isNowOpen) {
+      setEntranceStep(0);
+      setIsEntrancePhase(false);
+    }
+  }, [
+    activeIndex,
+    replayTrigger,
+    startEntranceChoreography,
+  ]);
 
   // Track scroll position to determine whether scroll-up or pull-down applies
   const [scrollTop, setScrollTop] = useState<number>(0);
@@ -824,13 +883,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     </div>
                   </div>
 
-                  {/* FADE-IN WRAPPER FOR PDP INNER CONTENT */}
-                  <motion.div
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: isClosing ? 0 : 1 }}
-                    transition={{ duration: isClosing ? 0.15 : 0.22, delay: isClosing ? 0 : 0.06 }}
-                    className="flex flex-col"
-                  >
+                  {/* WRAPPER FOR PDP INNER CONTENT */}
+                  <div className="flex flex-col">
                     {/* ACTION ROW: RATING, HEART, SHARE */}
                     <motion.div
                       initial={false}
@@ -908,50 +962,73 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                       </div>
                     </motion.div>
 
-                    {/* SWIPEABLE CONTENT WRAPPER */}
+                    {/* Brand and Product Title (always visible with hero image) */}
+                    <div className="px-4 pt-1.5 pointer-events-none select-none">
+                      <span className="text-[11px] font-medium text-[#8E8E93] border-b border-dotted border-[#8E8E93] pb-0.5 inline-block cursor-default">
+                        {currentProduct.brand_info.name}
+                      </span>
+                      <h1 className="text-[15px] font-semibold text-[#FFFFFF] leading-snug mt-1">
+                        {currentProduct.title}
+                      </h1>
+                    </div>
+
+                    {/* DYNAMIC CONTENT COMING FROM BOTTOM (Behind Add to cart) */}
                     <motion.div
-                      animate={{ x: contentDragX }}
-                      transition={{ type: 'spring', stiffness: 380, damping: 38, mass: 0.7 }}
+                      key={`dynamic-content-${animationKey}`}
+                      initial={{
+                        y: tuning.contentSlideDistance,
+                        opacity: tuning.contentStartOpacity,
+                      }}
+                      animate={{
+                        y: isClosing ? 24 : 0,
+                        opacity: isClosing ? 0 : 1,
+                        x: contentDragX,
+                      }}
+                      transition={{
+                        y: {
+                          duration: tuning.contentDuration,
+                          ease: [0.16, 1, 0.3, 1],
+                          delay: isClosing ? 0 : tuning.contentDelay,
+                        },
+                        opacity: {
+                          duration: isClosing ? 0.15 : tuning.contentDuration,
+                          ease: [0.16, 1, 0.3, 1],
+                          delay: isClosing ? 0 : tuning.contentDelay,
+                        },
+                        x: { type: 'spring', stiffness: 380, damping: 38, mass: 0.7 },
+                      }}
                       onPointerDown={handleContentPointerDown}
                       onPointerMove={handleContentPointerMove}
                       onPointerUp={handleContentPointerUp}
                       onPointerCancel={handleContentPointerUp}
                       className="flex flex-col select-none touch-pan-y cursor-grab active:cursor-grabbing"
                     >
-                      {/* Brand name */}
-                      <div className="px-4 pt-1.5 pointer-events-none">
-                        <span className="text-[11px] font-medium text-[#8E8E93] border-b border-dotted border-[#8E8E93] pb-0.5 inline-block cursor-default">
-                          {currentProduct.brand_info.name}
-                        </span>
-                        <h1 className="text-[15px] font-semibold text-[#FFFFFF] leading-snug mt-1">
-                          {currentProduct.title}
-                        </h1>
-                      </div>
-
-                      {/* Price Section */}
-                      <div className="px-4 pt-1 pointer-events-none">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-lg font-bold text-[#FFFFFF]">
-                            ₹{currentProduct.price.selling_price}
-                          </span>
-                          {currentProduct.price.mrp > currentProduct.price.selling_price && (
-                            <span className="text-xs font-semibold text-[#71717A] line-through">
-                              ₹{currentProduct.price.mrp}
+                      {/* Content below product title: Price, POPchop banner, sizes */}
+                      <div className="flex flex-col">
+                        {/* Price Section */}
+                        <div className="px-4 pt-1 pointer-events-none">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-lg font-bold text-[#FFFFFF]">
+                              ₹{currentProduct.price.selling_price}
                             </span>
-                          )}
-                        </div>
+                            {currentProduct.price.mrp > currentProduct.price.selling_price && (
+                              <span className="text-xs font-semibold text-[#71717A] line-through">
+                                ₹{currentProduct.price.mrp}
+                              </span>
+                            )}
+                          </div>
 
-                        {/* POPchop Offer Banner */}
-                        <div 
-                          className="mt-[19px] rounded-[14px] p-2.5 border border-purple-500/20 relative overflow-hidden active:scale-[0.99] transition-transform cursor-pointer pointer-events-auto"
-                          style={{
-                            marginTop: '19px',
-                            background: 'linear-gradient(90deg, #2D0558 0%, #4D0084 50%, #2A0452 100%)',
-                          }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2.5">
-                              <div className="w-7 h-7 rounded-full bg-purple-400/20 flex items-center justify-center">
+                          {/* POPchop Offer Banner */}
+                          <div 
+                            className="mt-[19px] rounded-[14px] p-2.5 border border-purple-500/20 relative overflow-hidden active:scale-[0.99] transition-transform cursor-pointer pointer-events-auto"
+                            style={{
+                              marginTop: '19px',
+                              background: 'linear-gradient(90deg, #2D0558 0%, #4D0084 50%, #2A0452 100%)',
+                            }}
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2.5">
+                                <div className="w-7 h-7 rounded-full bg-purple-400/20 flex items-center justify-center">
                                 <img src={APP_ASSETS.popChopIcon} alt="" className="w-4 h-4 object-contain" />
                               </div>
                               <div>
@@ -1055,12 +1132,30 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                           })}
                         </div>
                       </div>
+                      </div>
                     </motion.div>
-                  </motion.div>
+                  </div>
                 </div>
 
                 {/* EXTENDED DETAILS SECTION */}
-                <div ref={extendedDetailsRef} className="mt-1">
+                <motion.div
+                  ref={extendedDetailsRef}
+                  key={`extended-details-${animationKey}`}
+                  initial={{
+                    y: tuning.contentSlideDistance + 20,
+                    opacity: tuning.contentStartOpacity,
+                  }}
+                  animate={{
+                    y: isClosing ? 16 : 0,
+                    opacity: isClosing ? 0 : 1,
+                  }}
+                  transition={{
+                    duration: tuning.contentDuration,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: isClosing ? 0 : tuning.contentDelay + 0.04,
+                  }}
+                  className="mt-1"
+                >
                   {renderScrollDetails && renderScrollDetails(
                     currentProduct,
                     isScrolled,
@@ -1073,7 +1168,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                       }
                     }
                   )}
-                </div>
+                </motion.div>
               </div>
             </motion.div>
 
@@ -1083,11 +1178,30 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               transition={{ duration: isClosing ? 0.15 : 0.2 }}
               className="absolute bottom-0 left-0 right-0 z-40 px-4 pt-2 pb-2 bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/95 to-transparent pointer-events-auto"
             >
-              {/* Add to cart Button */}
+              {/* Add to cart Button (Travels from top to bottom with zero to 100% opacity) */}
               <motion.button
-                layout
-                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
-                className="w-full h-12 rounded-full text-[#000000] font-bold text-sm flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] transition-transform mb-3"
+                key={`add-to-cart-${animationKey}`}
+                initial={{
+                  y: tuning.addToCartStartY,
+                  opacity: tuning.addToCartStartOpacity,
+                }}
+                animate={{
+                  y: isClosing ? 60 : 0,
+                  opacity: isClosing ? 0 : tuning.addToCartEndOpacity,
+                }}
+                transition={{
+                  y: {
+                    duration: tuning.addToCartDuration,
+                    ease: [0.16, 1, 0.3, 1],
+                    delay: isClosing ? 0 : tuning.addToCartDelay,
+                  },
+                  opacity: {
+                    duration: tuning.addToCartDuration,
+                    ease: 'easeOut',
+                    delay: isClosing ? 0 : tuning.addToCartDelay,
+                  },
+                }}
+                className="w-full h-12 rounded-full text-[#000000] font-bold text-sm flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] transition-transform mb-3 cursor-pointer"
                 style={{
                   background: 'linear-gradient(180deg, #FFFFFF 0%, #D4D4D8 100%)',
                 }}
@@ -1096,18 +1210,17 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 <span className="tracking-tight text-sm font-bold">Add to cart</span>
               </motion.button>
 
-              {/* Bottom Scrolling Dock */}
-              <motion.div
+              {/* Bottom Scrolling Dock (Slides in from right to left with a little bounce) */}
+              <div
                 ref={dockContainerRef}
-                initial={false}
-                animate={{
+                style={{
                   height: isScrolled ? 0 : 64,
                   opacity: isScrolled ? 0 : 1,
-                  y: isScrolled ? 36 : 0,
+                  transform: isScrolled ? 'translateY(36px)' : 'translateY(0px)',
                   marginTop: isScrolled ? 0 : 4,
                   pointerEvents: isScrolled ? 'none' : 'auto',
+                  transition: 'height 0.3s ease, opacity 0.25s ease, transform 0.3s ease, margin-top 0.3s ease',
                 }}
-                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
                 onPointerDown={handleDockPointerDown}
                 onPointerMove={handleDockPointerMove}
                 onPointerUp={handleDockPointerUp}
@@ -1116,17 +1229,43 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 className="bottom-dock-container w-full overflow-hidden relative flex items-center py-1 cursor-grab active:cursor-grabbing select-none"
               >
                 <motion.div
+                  key={`dock-track-${animationKey}`}
                   className="flex items-center"
                   style={{ gap: `${DOCK_ITEM_GAP}px` }}
+                  initial={{
+                    x: targetDockX + tuning.bottomCirclesDistance,
+                    opacity: tuning.bottomCirclesStartOpacity,
+                  }}
                   animate={{
-                    x: targetDockX + dockDragOffset + (contentDragX * (DOCK_ITEM_STEP / 200)),
+                    x: isClosing
+                      ? targetDockX
+                      : targetDockX + dockDragOffset + (contentDragX * (DOCK_ITEM_STEP / 200)),
+                    opacity: isClosing ? 0 : 1,
                   }}
-                  transition={{
-                    type: 'spring',
-                    stiffness: 320,
-                    damping: 36,
-                    mass: 0.8,
-                  }}
+                  transition={
+                    isEntrancePhase
+                      ? {
+                          x: {
+                            type: 'spring',
+                            stiffness: tuning.bottomCirclesStiffness || 240,
+                            damping: tuning.bottomCirclesDamping || 18,
+                            mass: tuning.bottomCirclesMass || 0.8,
+                            bounce: tuning.bottomCirclesBounce ?? 0.25,
+                            delay: isClosing ? 0 : tuning.bottomCirclesDelay,
+                          },
+                          opacity: {
+                            duration: tuning.bottomCirclesDuration,
+                            ease: 'easeOut',
+                            delay: isClosing ? 0 : tuning.bottomCirclesDelay,
+                          },
+                        }
+                      : {
+                          type: 'spring',
+                          stiffness: tuning.springStiffness || 320,
+                          damping: Math.max(tuning.springDamping || 36, 34),
+                          mass: 0.8,
+                        }
+                  }
                 >
                   {products.map((p, idx) => {
                     const isSelected = idx === safeIndex;
@@ -1158,7 +1297,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     );
                   })}
                 </motion.div>
-              </motion.div>
+              </div>
             </motion.div>
           </motion.div>
         )}

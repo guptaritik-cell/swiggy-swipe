@@ -16,8 +16,18 @@ export default function App() {
   const [recommendations, setRecommendations] = useState<ProductItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   
-  // Tuning state
-  const [tuning, setTuning] = useState<AnimationTuningConfig>(DEFAULT_TUNING_CONFIG);
+  // Tuning state with localStorage persistence
+  const [tuning, setTuning] = useState<AnimationTuningConfig>(() => {
+    try {
+      const saved = localStorage.getItem('popclub_saved_tuning_config');
+      if (saved) {
+        return { ...DEFAULT_TUNING_CONFIG, ...JSON.parse(saved) };
+      }
+    } catch {
+      // fallback to DEFAULT_TUNING_CONFIG
+    }
+    return DEFAULT_TUNING_CONFIG;
+  });
   
   // Active product index for the carousel & modal (-1 or null if PLP is visible)
   const [activeProductIndex, setActiveProductIndex] = useState<number | null>(null);
@@ -34,6 +44,9 @@ export default function App() {
   // Real-time telemetry tracking
   const [scrollDelta, setScrollDelta] = useState<number>(0);
   const [dragY, setDragY] = useState<number>(0);
+
+  // Entrance animation replay trigger
+  const [replayTrigger, setReplayTrigger] = useState<number>(0);
 
   // 1. Initial & dataset-triggered data fetch (API 1: Listing)
   useEffect(() => {
@@ -91,7 +104,18 @@ export default function App() {
   };
 
   const handleResetTuning = () => {
+    try {
+      localStorage.removeItem('popclub_saved_tuning_config');
+    } catch {}
     setTuning(DEFAULT_TUNING_CONFIG);
+  };
+
+  const handleSaveDefaultTuning = (savedTuning: AnimationTuningConfig) => {
+    try {
+      localStorage.setItem('popclub_saved_tuning_config', JSON.stringify(savedTuning));
+    } catch (e) {
+      console.error('Failed to save tuning config to localStorage:', e);
+    }
   };
 
   return (
@@ -151,10 +175,11 @@ export default function App() {
               <CoreProductAnimation
                 products={products}
                 tuning={tuning}
-                activeProductIndex={activeProductIndex ?? undefined}
+                activeProductIndex={activeProductIndex}
                 onActiveIndexChange={(idx) => setActiveProductIndex(idx >= 0 ? idx : null)}
                 onProductSelect={handleProductSelect}
                 onScrollDelta={(delta) => setScrollDelta(delta)}
+                replayTrigger={replayTrigger}
                 renderScrollDetails={(activeProd, isScrolledUp, onExpand) => (
                   <ProductScrollDetailsContent
                     product={activeProd}
@@ -178,12 +203,20 @@ export default function App() {
         tuning={tuning}
         onUpdateTuning={setTuning}
         onResetTuning={handleResetTuning}
+        onSaveDefaultTuning={handleSaveDefaultTuning}
         activeDataset={activeDataset}
         onDatasetChange={setActiveDataset}
         currentMode={currentMode}
         onModeChange={setCurrentMode}
         realtimeY={dragY}
         realtimeScroll={scrollDelta}
+        onReplayAnimation={() => {
+          if (activeProductIndex === null || activeProductIndex < 0) {
+            setActiveProductIndex(0);
+          } else {
+            setReplayTrigger(prev => prev + 1);
+          }
+        }}
       />
     </div>
   );

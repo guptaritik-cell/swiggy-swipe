@@ -12,6 +12,35 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+      // Ensure requestAnimationFrame fires reliably in background/tabbed environments
+      (function() {
+        var nativeRaf = window.requestAnimationFrame.bind(window);
+        var nativeCaf = window.cancelAnimationFrame.bind(window);
+        var lastTime = 0;
+        
+        window.requestAnimationFrame = function(callback) {
+          if (document.hidden) {
+            var currTime = performance.now();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = window.setTimeout(function() {
+              callback(performance.now());
+            }, timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+          }
+          return nativeRaf(callback);
+        };
+        
+        window.cancelAnimationFrame = function(id) {
+          if (document.hidden) {
+            clearTimeout(id);
+          } else {
+            nativeCaf(id);
+          }
+        };
+      })();
+    </script>
   </head>
   <body class="bg-[#0b0c10] text-slate-100 antialiased selection:bg-purple-500 selection:text-white overflow-x-hidden">
     <div id="root"></div>

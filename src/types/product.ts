@@ -91,6 +91,29 @@ export interface AnimationTuningConfig {
   enableBackdropBlur: boolean;
   showDebugHUD: boolean;
   selectedPreset: 'swiggy' | 'smooth' | 'snappy' | 'bouncy' | 'custom';
+
+  // 1. Add to Cart button entrance motion (top to bottom)
+  addToCartStartY: number; // Starting Y offset in px (e.g. -380)
+  addToCartDuration: number; // Travel duration in seconds (e.g. 0.42)
+  addToCartDelay: number; // Delay in seconds (e.g. 0.10)
+  addToCartStartOpacity: number; // Start opacity (0.0 to 1.0)
+  addToCartEndOpacity: number; // End opacity (0.0 to 1.0)
+
+  // 2. Content entrance motion (gliding up from bottom behind Add to cart)
+  contentSlideDistance: number; // Slide up distance in px (e.g. 240)
+  contentDuration: number; // Duration in seconds (e.g. 0.55)
+  contentDelay: number; // Delay in seconds (e.g. 0.42)
+  contentStartOpacity: number; // Starting opacity (0.0 to 1.0)
+
+  // 3. Bottom dock circles entrance motion (sliding right to left with bounce)
+  bottomCirclesDistance: number; // Starting offset from right in px (e.g. 280)
+  bottomCirclesDuration: number; // Duration in seconds (e.g. 0.58)
+  bottomCirclesDelay: number; // Delay in seconds (e.g. 0.42)
+  bottomCirclesBounce: number; // Bounce factor (0.0 to 0.6)
+  bottomCirclesStiffness: number; // Spring stiffness (e.g. 240)
+  bottomCirclesDamping: number; // Spring damping (e.g. 18)
+  bottomCirclesMass: number; // Spring mass (e.g. 0.8)
+  bottomCirclesStartOpacity: number; // Starting opacity (0.0 to 1.0)
 }
 
 export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
@@ -107,4 +130,27 @@ export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
   enableBackdropBlur: true,
   showDebugHUD: false,
   selectedPreset: 'swiggy',
+
+  // 1. Add to Cart button entrance (TOP -> BOTTOM)
+  addToCartStartY: -100,
+  addToCartDuration: 0.27,
+  addToCartDelay: 0.00,
+  addToCartStartOpacity: 0.0,
+  addToCartEndOpacity: 1.0,
+
+  // 2. Content entrance (BOTTOM -> TOP)
+  contentSlideDistance: 170,
+  contentDuration: 0.44,
+  contentDelay: 0.30,
+  contentStartOpacity: 0.0,
+
+  // 3. Bottom circles entrance (RIGHT -> LEFT + BOUNCE)
+  bottomCirclesDistance: 260,
+  bottomCirclesDuration: 0.58,
+  bottomCirclesDelay: 0.30,
+  bottomCirclesBounce: 0.25,
+  bottomCirclesStiffness: 240,
+  bottomCirclesDamping: 18,
+  bottomCirclesMass: 0.8,
+  bottomCirclesStartOpacity: 0.0,
 };

@@ -214,6 +214,7 @@ export const FEATURED_PRODUCTS: ProductItem[] = [
     images: "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?auto=format&fit=crop&w=800&q=80",
     galleryImages: [
       "https://images.unsplash.com/photo-1591195853828-11db59a44f6b?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1506629082955-511b1aa562c8?auto=format&fit=crop&w=800&q=80",
     ],
     price: {
       currency: "INR",

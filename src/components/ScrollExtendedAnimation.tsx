@@ -66,7 +66,7 @@ export const ProductScrollDetailsContent: React.FC<ScrollExtendedAnimationProps>
   ];
 
   return (
-    <div className="flex flex-col space-y-4 pt-1 pb-10 px-4 text-[#FFFFFF] bg-[#0D0D0D]">
+    <div className={`flex flex-col space-y-4 pt-1 pb-10 px-4 text-[#FFFFFF] ${isScrolledUp ? 'bg-[#0D0D0D]' : 'bg-transparent'}`}>
       
       {/* ======================================================== */}
       {/* 1. SELECT SIZE CARD (Optional when rendered externally)  */}
@@ -702,25 +702,30 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
             </div>
           </div>
 
-          {/* Dismissal Gesture Controls */}
+          {/* Pull Down to Close Threshold Controls */}
           <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
-            <span className="font-semibold text-[11px] uppercase tracking-wider text-[#A1A1AA] block">
-              Swipe Bottom Threshold
-            </span>
+            <div>
+              <span className="font-semibold text-[11px] uppercase tracking-wider text-amber-400 block">
+                Pull Down to Close Threshold
+              </span>
+              <span className="text-[10px] text-[#71717A] block">
+                Pull down distance in px needed to dismiss card
+              </span>
+            </div>
 
             <div className="space-y-1">
               <div className="flex justify-between text-[11px]">
-                <span className="text-[#71717A]">Dismiss Distance</span>
+                <span className="text-[#71717A]">Close Threshold</span>
                 <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.dragCloseThreshold} px</span>
               </div>
               <input
                 type="range"
-                min="50"
-                max="220"
+                min="30"
+                max="200"
                 step="5"
                 value={tuning.dragCloseThreshold}
                 onChange={(e) => onUpdateTuning({ ...tuning, dragCloseThreshold: Number(e.target.value), selectedPreset: 'custom' })}
-                className="w-full accent-white bg-[#1F1F1F] h-1.5 rounded-lg"
+                className="w-full accent-amber-400 bg-[#1F1F1F] h-1.5 rounded-lg"
               />
             </div>
           </div>

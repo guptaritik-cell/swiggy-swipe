@@ -101,27 +101,35 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
       setEntranceStep(1);
     }, 40);
 
-    const totalDuration = Math.max(
-      tuning.addToCartDelay + tuning.addToCartDuration,
-      tuning.contentDelay + tuning.contentDuration,
-      tuning.bottomCirclesDelay + tuning.bottomCirclesDuration
-    );
-    const phaseTimer = setTimeout(() => {
-      setIsEntrancePhase(false);
-    }, (totalDuration + 0.35) * 1000);
-
     return () => {
       clearTimeout(stepTimer);
-      clearTimeout(phaseTimer);
     };
-  }, [
-    tuning.addToCartDelay,
-    tuning.addToCartDuration,
-    tuning.contentDelay,
-    tuning.contentDuration,
-    tuning.bottomCirclesDelay,
-    tuning.bottomCirclesDuration,
-  ]);
+  }, []);
+
+  // Live re-trigger entrance animation when tuning parameters are adjusted in the sidebar
+  const prevTuningRef = useRef(tuning);
+  useEffect(() => {
+    if (activeIndex !== null && activeIndex >= 0) {
+      if (
+        prevTuningRef.current.addToCartStartY !== tuning.addToCartStartY ||
+        prevTuningRef.current.addToCartDuration !== tuning.addToCartDuration ||
+        prevTuningRef.current.addToCartDelay !== tuning.addToCartDelay ||
+        prevTuningRef.current.addToCartStartOpacity !== tuning.addToCartStartOpacity ||
+        prevTuningRef.current.addToCartEndOpacity !== tuning.addToCartEndOpacity ||
+        prevTuningRef.current.contentSlideDistance !== tuning.contentSlideDistance ||
+        prevTuningRef.current.contentDuration !== tuning.contentDuration ||
+        prevTuningRef.current.contentDelay !== tuning.contentDelay ||
+        prevTuningRef.current.contentStartOpacity !== tuning.contentStartOpacity
+      ) {
+        prevTuningRef.current = tuning;
+        const timer = setTimeout(() => {
+          startEntranceChoreography();
+        }, 120);
+        return () => clearTimeout(timer);
+      }
+    }
+    prevTuningRef.current = tuning;
+  }, [tuning, activeIndex, startEntranceChoreography]);
 
   useEffect(() => {
     const wasClosed = prevIndexRef.current === null || prevIndexRef.current === -1;
@@ -234,6 +242,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setIsDragging(false);
     setIsImageDragging(false);
     setIsPulling(false);
+    setIsEntrancePhase(true);
+    setAnimationKey(prev => prev + 1);
     if (onActiveIndexChange) {
       onActiveIndexChange(index);
     } else {
@@ -274,6 +284,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setIsDragging(false);
     setIsImageDragging(false);
     setIsPulling(false);
+    slideScrollRefs.current.forEach((el) => {
+      if (el) el.scrollLeft = 0;
+    });
   }, [activeIndex]);
 
   const toggleWishlist = (id: string | number, e?: React.MouseEvent) => {
@@ -328,6 +341,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
   // Scroll listener per slide
   const handleSlideScroll = (e: React.UIEvent<HTMLDivElement>, idx: number) => {
+    if (e.currentTarget.scrollLeft !== 0) {
+      e.currentTarget.scrollLeft = 0;
+    }
     const st = e.currentTarget.scrollTop;
     setScrollTops(prev => ({ ...prev, [idx]: st }));
     if (idx === safeIndex) {
@@ -789,11 +805,17 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               animate={{
                 backgroundColor: isScrolled ? '#0D0D0D' : 'rgba(13,13,13,0)',
                 borderBottomColor: isScrolled ? '#1F1F1F' : 'rgba(31,31,31,0)',
-                height: isScrolled ? 48 : 42,
+                height: isScrolled ? 48 : 58,
                 y: nudgeShiftY,
                 opacity: isClosing ? 0 : 1,
               }}
-              transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+              transition={{
+                backgroundColor: { duration: 0.28, ease: 'easeOut' },
+                borderBottomColor: { duration: 0.28, ease: 'easeOut' },
+                height: { duration: 0.28, ease: 'linear' },
+                y: { duration: 0.2, ease: 'linear' },
+                opacity: { duration: 0.28, ease: 'easeOut' },
+              }}
               className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3.5 border-b pointer-events-none"
               style={{
                 pointerEvents: isScrolled ? 'auto' : 'none',
@@ -807,7 +829,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   x: isScrolled ? 0 : -8,
                   pointerEvents: isScrolled ? 'auto' : 'none',
                 }}
-                transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+                transition={{
+                  opacity: { duration: 0.24, ease: 'easeOut' },
+                  x: { duration: 0.24, ease: 'easeOut' },
+                }}
                 onClick={() => {
                   if (currentScrollTop > 20 && slideScrollRefs.current[safeIndex]) {
                     slideScrollRefs.current[safeIndex]?.scrollTo({
@@ -827,7 +852,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               {/* Center to Top-Right: Cart + POPcoin Badge */}
               <motion.div
                 layout
-                transition={{ type: 'spring', stiffness: 320, damping: 34 }}
+                transition={{
+                  layout: { duration: 0.28, ease: 'linear' },
+                }}
                 className={`flex items-center gap-2 pointer-events-auto ${
                   isScrolled ? 'ml-auto mt-0' : 'mx-auto mt-10'
                 }`}
@@ -839,7 +866,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     width: isScrolled ? 32 : 0,
                     pointerEvents: isScrolled ? 'auto' : 'none',
                   }}
-                  transition={{ duration: 0.2 }}
+                  transition={{
+                    opacity: { duration: 0.24, ease: 'easeOut' },
+                    width: { duration: 0.24, ease: 'easeOut' },
+                  }}
                   className="overflow-hidden h-8 flex items-center justify-center text-white"
                   aria-label="Search"
                 >
@@ -853,20 +883,29 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     borderColor: isScrolled ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.1)',
                     boxShadow: isScrolled ? 'none' : '0 4px 6px -1px rgba(0,0,0,0.2)',
                   }}
+                  transition={{
+                    duration: 0.24,
+                    ease: 'easeOut',
+                  }}
                   className="w-8 h-8 rounded-full border flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
                   aria-label="Cart"
                 >
-                  <ShoppingCart size={isScrolled ? 19 : 16} className="text-[#FFFFFF]" />
+                  <ShoppingCart size={isScrolled ? 16 : 16} className="text-[#FFFFFF]" />
                 </motion.button>
 
                 {/* POP Box matching exactly the cart icon box height (h-8 = 32px) */}
-                <div className="h-8 flex items-center gap-1.5 px-3 border border-white/15 rounded-full bg-[#1C1C1E] backdrop-blur-md shadow-md shrink-0">
-                  <img src={APP_ASSETS.popCoin} alt="" className="w-3.5 h-3.5 object-contain" />
-                  <span className="text-xs font-semibold text-[#FFFFFF] leading-none">43K</span>
+                <div className="h-7 flex items-center gap-1 px-2 border border-white/15 rounded-full bg-[#1C1C1E] backdrop-blur-md shadow-md shrink-0">
+                  <img src={APP_ASSETS.popCoin} alt="" className="w-4.5 h-4.5 object-contain" />
+                  <span className="text-sm font-semibold text-[#FFFFFF] leading-none">43K</span>
                 </div>
               </motion.div>
 
-              {!isScrolled && <div className="w-8 shrink-0 pointer-events-none" />}
+              <motion.div
+                initial={false}
+                animate={{ width: isScrolled ? 0 : 32 }}
+                transition={{ duration: 0.28, ease: 'linear' }}
+                className="shrink-0 pointer-events-none overflow-hidden"
+              />
             </motion.div>
 
             {/* MAIN PDP HORIZONTAL PRODUCT SLIDER & VERTICAL SCROLL BODY */}
@@ -944,10 +983,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     const activeImageIdx = activeImageIndices[product.id] || 0;
                     const slideScroll = scrollTops[idx] || 0;
                     const isSlideScrolled = slideScroll > 15;
-                    const cardInnerWidth = isSlideScrolled ? containerWidth : containerWidth - 16;
+                    const cardInnerWidth = containerWidth - 16;
                     const currentHeroCardWidth = Math.max(240, cardInnerWidth - HERO_PADDING_LEFT - HERO_CARD_GAP - HERO_PEEK_WIDTH);
                     const currentHeroCardHeight = Math.round(currentHeroCardWidth * 1.12);
-                    // Rating, heart, sharing icons smoothly shift down from the image on scroll
+                    // Rating, heart, sharing icons smoothly shift down from the image on scroll (linear curve shifting)
                     const iconShiftY = Math.min(slideScroll * 0.85, 52);
                     const iconInset = Math.max(2, 14 - (slideScroll / 40) * 12);
                     const isScrolledDown = slideScroll > 20;
@@ -958,7 +997,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                         style={{
                           width: `${containerWidth}px`,
                           padding: isSlideScrolled ? '0px' : '0 8px 6px 8px',
-                          transition: 'padding 0.3s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                          transition: 'padding 0.28s linear',
                         }}
                         className="h-full flex flex-col shrink-0 relative select-none"
                       >
@@ -969,7 +1008,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                             background: isSlideScrolled
                               ? '#0D0D0D'
                               : 'linear-gradient(180deg, #0D0D0D 0%, #101013 25%, #141418 60%, #18181D 100%)',
-                            transition: 'border-radius 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.3s ease',
+                            transition: 'border-radius 0.28s linear, background 0.28s ease-out',
                           }}
                           className="h-full flex flex-col flex-1 relative overflow-hidden select-none"
                         >
@@ -977,13 +1016,13 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                           <div
                             ref={(el) => { slideScrollRefs.current[idx] = el; }}
                             onScroll={(e) => handleSlideScroll(e, idx)}
-                            className="flex-1 overflow-y-auto no-scrollbar pt-12 pb-4 overscroll-contain"
-                            style={{ touchAction: 'pan-y' }}
+                            className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pt-12 pb-4 overscroll-contain w-full max-w-full"
+                            style={{ touchAction: 'pan-y', overflowX: 'clip' }}
                           >
                             {/* PRODUCT HERO IMAGE CAROUSEL WITH ADJACENT PEEK OF SAME PRODUCT */}
                             <div
-                              className="product-hero-carousel relative w-full pt-1 pb-1 overflow-visible select-none"
-                              style={{ touchAction: 'pan-y' }}
+                              className="product-hero-carousel relative w-full pt-1 pb-1 select-none"
+                              style={{ touchAction: 'pan-y', overflowX: 'clip', overflowY: 'visible' }}
                             >
                               {/* TRACK FOR GALLERY IMAGES */}
                               <motion.div
@@ -1040,7 +1079,6 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   width: `${currentHeroCardWidth}px`,
                                   height: `${currentHeroCardHeight}px`,
                                   transform: `translateY(${iconShiftY}px)`,
-                                  transition: 'transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1)',
                                 }}
                               >
                                 {/* RATING BADGE AT BOTTOM-LEFT */}
@@ -1049,7 +1087,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     left: `${iconInset}px`,
                                     bottom: '14px',
                                   }}
-                                  className={`absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto transition-all duration-200 ${
+                                  className={`absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
                                     isScrolledDown
                                       ? 'bg-[#161616] border border-[#262626] shadow-md'
                                       : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
@@ -1071,7 +1109,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                 >
                                   <button
                                     onClick={(e) => toggleWishlist(product.id, e)}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-all duration-200 ${
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
                                       isScrolledDown
                                         ? 'bg-transparent border-transparent shadow-none'
                                         : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
@@ -1091,7 +1129,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                         navigator.share({ title: product.title, url: window.location.href }).catch(() => {});
                                       }
                                     }}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-all duration-200 ${
+                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
                                       isScrolledDown
                                         ? 'bg-transparent border-transparent shadow-none'
                                         : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
@@ -1104,55 +1142,87 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                               </div>
                             </div>
 
-                            {/* CONTENT BELOW IMAGE (ENTRANCE ANIMATION: BOTTOM -> TOP) */}
-                            <motion.div
-                              key={idx === safeIndex ? `product-content-${animationKey}` : `product-content-${idx}`}
-                              initial={
-                                isEntrancePhase && idx === safeIndex
-                                  ? {
-                                      y: tuning.contentSlideDistance,
-                                      opacity: tuning.contentStartOpacity,
-                                    }
-                                  : false
-                              }
-                              animate={{
-                                y: 0,
-                                opacity: 1,
-                              }}
-                              transition={
-                                isEntrancePhase && idx === safeIndex
-                                  ? {
-                                      y: {
-                                        duration: tuning.contentDuration,
-                                        delay: tuning.contentDelay,
-                                        ease: [0.16, 1, 0.3, 1],
-                                      },
-                                      opacity: {
-                                        duration: tuning.contentDuration,
-                                        delay: tuning.contentDelay,
-                                        ease: 'easeOut',
-                                      },
-                                    }
-                                  : { duration: 0 }
-                              }
+                            {/* CONTENT BELOW IMAGE (STAGGERED ENTRANCE ANIMATION: BOTTOM -> TOP) */}
+                            <div
                               style={{
-                                paddingTop: `${Math.min(slideScroll * 0.75, 46)}px`,
-                                transition: 'padding-top 0.12s cubic-bezier(0.2, 0.8, 0.2, 1)',
+                                transform: `translateY(${Math.min(slideScroll * 0.75, 46)}px)`,
                               }}
-                              className="product-content-body flex flex-col"
+                              className="product-content-body flex flex-col w-full max-w-full"
                             >
-                              {/* BRAND & PRODUCT TITLE */}
-                              <div className="px-4 pt-2.5 pointer-events-none select-none">
+                              {/* 1. BRAND & PRODUCT TITLE */}
+                              <motion.div
+                                key={idx === safeIndex ? `content-title-${animationKey}` : `content-title-${idx}`}
+                                initial={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: tuning.contentSlideDistance,
+                                        opacity: tuning.contentStartOpacity,
+                                      }
+                                    : false
+                                }
+                                animate={{
+                                  y: 0,
+                                  opacity: 1,
+                                }}
+                                transition={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay,
+                                          ease: [0.16, 1, 0.3, 1],
+                                        },
+                                        opacity: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay,
+                                          ease: 'easeOut',
+                                        },
+                                      }
+                                    : { duration: 0 }
+                                }
+                                className="px-4 pt-2.5 pointer-events-none select-none"
+                              >
                                 <span className="text-[11px] font-medium text-[#8E8E93] border-b border-dotted border-[#8E8E93] pb-0.5 inline-block">
                                   {product.brand_info.name}
                                 </span>
                                 <h1 className="text-[15px] font-semibold text-[#FFFFFF] leading-snug mt-1">
                                   {product.title}
                                 </h1>
-                              </div>
+                              </motion.div>
 
-                              {/* PRICING & OFFERS */}
-                              <div className="px-4 pt-1">
+                              {/* 2. PRICING */}
+                              <motion.div
+                                key={idx === safeIndex ? `content-price-${animationKey}` : `content-price-${idx}`}
+                                initial={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: tuning.contentSlideDistance,
+                                        opacity: tuning.contentStartOpacity,
+                                      }
+                                    : false
+                                }
+                                animate={{
+                                  y: 0,
+                                  opacity: 1,
+                                }}
+                                transition={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.08,
+                                          ease: [0.16, 1, 0.3, 1],
+                                        },
+                                        opacity: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.08,
+                                          ease: 'easeOut',
+                                        },
+                                      }
+                                    : { duration: 0 }
+                                }
+                                className="px-4 pt-1"
+                              >
                                 <div className="flex items-baseline gap-2">
                                   <span className="text-lg font-bold text-[#FFFFFF]">
                                     ₹{product.price.selling_price}
@@ -1163,10 +1233,43 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     </span>
                                   )}
                                 </div>
+                              </motion.div>
 
-                                {/* POPchop Offer Banner */}
+                              {/* 3. PURPLE BADGE (POPchop Offer Banner) */}
+                              <motion.div
+                                key={idx === safeIndex ? `content-purple-badge-${animationKey}` : `content-purple-badge-${idx}`}
+                                initial={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: tuning.contentSlideDistance,
+                                        opacity: tuning.contentStartOpacity,
+                                      }
+                                    : false
+                                }
+                                animate={{
+                                  y: 0,
+                                  opacity: 1,
+                                }}
+                                transition={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.16,
+                                          ease: [0.16, 1, 0.3, 1],
+                                        },
+                                        opacity: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.16,
+                                          ease: 'easeOut',
+                                        },
+                                      }
+                                    : { duration: 0 }
+                                }
+                                className="px-4 pt-2.5"
+                              >
                                 <div
-                                  className="mt-3 rounded-[14px] p-2.5 border border-purple-500/20 relative overflow-hidden active:scale-[0.99] transition-transform cursor-pointer pointer-events-auto"
+                                  className="rounded-[14px] p-2.5 border border-purple-500/20 relative overflow-hidden active:scale-[0.99] transition-transform cursor-pointer pointer-events-auto"
                                   style={{
                                     background: 'linear-gradient(90deg, #2D0558 0%, #4D0084 50%, #2A0452 100%)',
                                   }}
@@ -1196,9 +1299,43 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     </div>
                                   </div>
                                 </div>
+                              </motion.div>
 
+                              {/* 4. BELOW TEXT (Pay Zero Chip, Size Selector, Details) */}
+                              <motion.div
+                                key={idx === safeIndex ? `content-below-text-${animationKey}` : `content-below-text-${idx}`}
+                                initial={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: tuning.contentSlideDistance,
+                                        opacity: tuning.contentStartOpacity,
+                                      }
+                                    : false
+                                }
+                                animate={{
+                                  y: 0,
+                                  opacity: 1,
+                                }}
+                                transition={
+                                  isEntrancePhase && idx === safeIndex
+                                    ? {
+                                        y: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.24,
+                                          ease: [0.16, 1, 0.3, 1],
+                                        },
+                                        opacity: {
+                                          duration: tuning.contentDuration,
+                                          delay: tuning.contentDelay + 0.24,
+                                          ease: 'easeOut',
+                                        },
+                                      }
+                                    : { duration: 0 }
+                                }
+                                className="flex flex-col"
+                              >
                                 {/* Pay Zero Now Chip */}
-                                <div className="mt-2 flex items-center gap-1 text-xs text-[#A1A1AA]">
+                                <div className="px-4 mt-2 flex items-center gap-1 text-xs text-[#A1A1AA]">
                                   <span>or Pay</span>
                                   <span className="font-semibold text-[#FFFFFF] border-b border-dotted border-white/60 pb-0.5 flex items-center gap-1">
                                     ₹{product.price.selling_price} +
@@ -1207,79 +1344,79 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   </span>
                                   <span>now</span>
                                 </div>
-                              </div>
 
-                              {/* SIZE SELECTOR SECTION */}
-                              <div className="px-4 pt-3 pb-1">
-                                <div
-                                  onClick={() => {
-                                    slideScrollRefs.current[idx]?.scrollTo({ top: 380, behavior: 'smooth' });
-                                  }}
-                                  className="flex items-center justify-between mb-2 cursor-pointer select-none"
-                                >
-                                  <span className="text-sm font-semibold text-[#FFFFFF]">Select size</span>
-                                  <button
-                                    type="button"
-                                    className="flex items-center gap-0.5 text-xs font-semibold text-[#FFFFFF] hover:text-zinc-200 transition-colors"
+                                {/* SIZE SELECTOR SECTION */}
+                                <div className="px-4 pt-3 pb-1">
+                                  <div
+                                    onClick={() => {
+                                      slideScrollRefs.current[idx]?.scrollTo({ top: 380, behavior: 'smooth' });
+                                    }}
+                                    className="flex items-center justify-between mb-2 cursor-pointer select-none"
                                   >
-                                    <span>Size chart</span>
-                                    <ChevronRight size={14} className="text-[#FFFFFF]" />
-                                  </button>
-                                </div>
+                                    <span className="text-sm font-semibold text-[#FFFFFF]">Select size</span>
+                                    <button
+                                      type="button"
+                                      className="flex items-center gap-0.5 text-xs font-semibold text-[#FFFFFF] hover:text-zinc-200 transition-colors"
+                                    >
+                                      <span>Size chart</span>
+                                      <ChevronRight size={14} className="text-[#FFFFFF]" />
+                                    </button>
+                                  </div>
 
-                                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-2.5">
-                                  {productSizes.map((s) => {
-                                    const isSizeSelected = selectedSizeId === s.id;
-                                    return (
-                                      <div key={s.id} className="flex flex-col items-center shrink-0">
-                                        <button
-                                          onClick={(e) => {
-                                            e.stopPropagation();
-                                            if (s.isAvailable) {
-                                              setSelectedSizes(prev => ({ ...prev, [product.id]: s.id }));
-                                            }
-                                          }}
-                                          disabled={!s.isAvailable}
-                                          className={`min-w-[48px] h-[40px] px-3 rounded-[8px] text-xs font-bold transition-all border flex items-center justify-center ${
-                                            isSizeSelected
-                                              ? 'bg-[#FFFFFF] text-[#000000] border-[#FFFFFF] shadow-sm'
-                                              : s.isAvailable
-                                              ? 'bg-[#161616] border-[#262626] text-[#FFFFFF] hover:border-white/30'
-                                              : 'bg-[#161616] border-[#1F1F1F] text-[#4B4B4B] cursor-not-allowed opacity-50'
-                                          }`}
-                                        >
-                                          {s.label}
-                                        </button>
-                                        {s.stockLeft ? (
-                                          <span
-                                            className="text-[10px] font-semibold mt-1"
-                                            style={{ color: s.stockColor }}
+                                  <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 mb-2.5">
+                                    {productSizes.map((s) => {
+                                      const isSizeSelected = selectedSizeId === s.id;
+                                      return (
+                                        <div key={s.id} className="flex flex-col items-center shrink-0">
+                                          <button
+                                            onClick={(e) => {
+                                              e.stopPropagation();
+                                              if (s.isAvailable) {
+                                                setSelectedSizes(prev => ({ ...prev, [product.id]: s.id }));
+                                              }
+                                            }}
+                                            disabled={!s.isAvailable}
+                                            className={`min-w-[48px] h-[40px] px-3 rounded-[8px] text-xs font-bold transition-all border flex items-center justify-center ${
+                                              isSizeSelected
+                                                ? 'bg-[#FFFFFF] text-[#000000] border-[#FFFFFF] shadow-sm'
+                                                : s.isAvailable
+                                                ? 'bg-[#161616] border-[#262626] text-[#FFFFFF] hover:border-white/30'
+                                                : 'bg-[#161616] border-[#1F1F1F] text-[#4B4B4B] cursor-not-allowed opacity-50'
+                                            }`}
                                           >
-                                            {s.stockLeft} left
-                                          </span>
-                                        ) : (
-                                          <span className="h-[15px]" />
-                                        )}
-                                      </div>
-                                    );
-                                  })}
+                                            {s.label}
+                                          </button>
+                                          {s.stockLeft ? (
+                                            <span
+                                              className="text-[10px] font-semibold mt-1"
+                                              style={{ color: s.stockColor }}
+                                            >
+                                              {s.stockLeft} left
+                                            </span>
+                                          ) : (
+                                            <span className="h-[15px]" />
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
-                              </div>
 
-                              {/* EXTENDED DETAILS */}
-                              <div className="mt-1">
-                                {renderScrollDetails && renderScrollDetails(
-                                  product,
-                                  currentScrollTop > 15,
-                                  () => {
-                                    slideScrollRefs.current[idx]?.scrollTo({
-                                      top: 140,
-                                      behavior: 'smooth',
-                                    });
-                                  }
-                                )}
-                              </div>
-                            </motion.div>
+                                {/* EXTENDED DETAILS */}
+                                <div className="mt-1">
+                                  {renderScrollDetails && renderScrollDetails(
+                                    product,
+                                    currentScrollTop > 15,
+                                    () => {
+                                      slideScrollRefs.current[idx]?.scrollTo({
+                                        top: 140,
+                                        behavior: 'smooth',
+                                      });
+                                    }
+                                  )}
+                                </div>
+                              </motion.div>
+                            </div>
                           </div>
 
                           {/* ADD TO CART BUTTON (ENTRANCE ANIMATION: TOP -> BOTTOM) */}
@@ -1358,7 +1495,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   transform: isScrolled ? 'translateY(36px)' : 'translateY(0px)',
                   marginTop: isScrolled ? 0 : 2,
                   pointerEvents: isScrolled ? 'none' : 'auto',
-                  transition: 'height 0.3s ease, opacity 0.25s ease, transform 0.3s ease, margin-top 0.3s ease',
+                  transition: 'height 0.28s linear, margin-top 0.28s linear, opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
                 }}
                 onPointerDown={handleDockPointerDown}
                 onPointerMove={handleDockPointerMove}

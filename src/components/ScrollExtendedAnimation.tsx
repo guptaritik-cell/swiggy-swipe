@@ -66,7 +66,7 @@ export const ProductScrollDetailsContent: React.FC<ScrollExtendedAnimationProps>
   ];
 
   return (
-    <div className={`flex flex-col space-y-4 pt-1 pb-10 px-4 text-[#FFFFFF] ${isScrolledUp ? 'bg-[#0D0D0D]' : 'bg-transparent'}`}>
+    <div className="flex flex-col space-y-4 pt-1 pb-10 px-4 text-[#FFFFFF] bg-[#0D0D0D]">
       
       {/* ======================================================== */}
       {/* 1. SELECT SIZE CARD (Optional when rendered externally)  */}
@@ -93,7 +93,7 @@ export const ProductScrollDetailsContent: React.FC<ScrollExtendedAnimationProps>
             animate={{
               opacity: isScrolledUp ? 1 : 0.85,
             }}
-            transition={{ duration: 0.25 }}
+            transition={{ duration: 0.25, ease: 'easeOut' }}
             className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1"
           >
             {[

@@ -156,6 +156,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   useEffect(() => {
     const wasClosed = prevIndexRef.current === null || prevIndexRef.current === -1;
     const isNowOpen = activeIndex !== null && activeIndex >= 0;
+    const indexChanged = prevIndexRef.current !== activeIndex;
     prevIndexRef.current = activeIndex;
 
     const replayChanged = replayTrigger !== undefined && replayTrigger !== prevReplayRef.current;
@@ -174,9 +175,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
         }, 2000);
       }, 700);
 
-      if (!isEntrancePhase) {
-        startEntranceChoreography();
-      }
+      startEntranceChoreography();
     } else if (isNowOpen && replayChanged) {
       startEntranceChoreography();
     } else if (!isNowOpen) {
@@ -186,12 +185,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
       setShowSwipeDownNudge(false);
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
       if (nudgeHideTimerRef.current) clearTimeout(nudgeHideTimerRef.current);
-    } else {
+    } else if (isNowOpen && indexChanged) {
       // Swiping between products while already open - do NOT trigger nudge or top-to-bottom cart drop
       setShowSwipeDownNudge(false);
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
       if (nudgeHideTimerRef.current) clearTimeout(nudgeHideTimerRef.current);
-      // But DO trigger content entrance animation for the newly selected product
+      // Trigger content entrance animation for the newly selected product
       setContentAnimKey(prev => prev + 1);
       setIsCartEntrancePhase(false);
     }
@@ -199,7 +198,6 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     activeIndex,
     replayTrigger,
     startEntranceChoreography,
-    isEntrancePhase,
   ]);
 
   // Track scroll position per product slide
@@ -212,27 +210,35 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   // Filter chips in PLP
   const [activeFilter, setActiveFilter] = useState<string>('All');
 
+  // Track container width for precise full-bleed slide tracking
+  const rootContainerRef = useRef<HTMLDivElement | null>(null);
   const sliderContainerRef = useRef<HTMLDivElement | null>(null);
   const dockContainerRef = useRef<HTMLDivElement | null>(null);
 
-  // Track container width for precise full-bleed slide tracking
   const [containerWidth, setContainerWidth] = useState<number>(380);
   const [dockWidth, setDockWidth] = useState<number>(360);
 
   useEffect(() => {
     const updateDimensions = () => {
-      if (sliderContainerRef.current) {
-        const sw = sliderContainerRef.current.clientWidth;
-        if (sw > 0) setContainerWidth(sw);
-      }
-      if (dockContainerRef.current) {
-        const dw = dockContainerRef.current.clientWidth;
-        if (dw > 0) setDockWidth(dw);
+      const rw = rootContainerRef.current?.clientWidth;
+      if (rw && rw > 0) {
+        setContainerWidth(rw);
+        setDockWidth(rw);
+      } else {
+        if (sliderContainerRef.current) {
+          const sw = sliderContainerRef.current.clientWidth;
+          if (sw > 0) setContainerWidth(sw);
+        }
+        if (dockContainerRef.current) {
+          const dw = dockContainerRef.current.clientWidth;
+          if (dw > 0) setDockWidth(dw);
+        }
       }
     };
     updateDimensions();
 
     const ro = new ResizeObserver(updateDimensions);
+    if (rootContainerRef.current) ro.observe(rootContainerRef.current);
     if (sliderContainerRef.current) ro.observe(sliderContainerRef.current);
     if (dockContainerRef.current) ro.observe(dockContainerRef.current);
     window.addEventListener('resize', updateDimensions);
@@ -271,22 +277,18 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setIsDragging(false);
     setIsImageDragging(false);
     setIsPulling(false);
-    if (isFromPLP) {
-      startEntranceChoreography();
-    } else {
+    if (!isFromPLP) {
       setIsEntrancePhase(false);
       setIsCartEntrancePhase(false);
-      setContentAnimKey(prev => prev + 1);
     }
+    setInternalIndex(index);
     if (onActiveIndexChange) {
       onActiveIndexChange(index);
-    } else {
-      setInternalIndex(index);
     }
     if (products[index]) {
       onProductSelect?.(products[index]);
     }
-  }, [onActiveIndexChange, onProductSelect, products, startEntranceChoreography]);
+  }, [onActiveIndexChange, onProductSelect, products]);
 
   // Navigate to next product
   const handleNextProduct = useCallback(() => {
@@ -1035,11 +1037,14 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 <motion.div
                   className="flex h-full flex-1"
                   style={{ gap: `${PRODUCT_SLIDE_GAP}px` }}
+                  initial={false}
                   animate={{
                     x: -safeIndex * (containerWidth + PRODUCT_SLIDE_GAP) + dragX,
                   }}
                   transition={
-                    isDragging
+                    isEntrancePhase
+                      ? { duration: 0 }
+                      : isDragging
                       ? { type: 'tween', duration: 0 }
                       : smoothSpringTransition
                   }
@@ -1234,37 +1239,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                               }}
                               className="product-content-body flex flex-col w-full max-w-full"
                             >
-                              {/* 1. BRAND & PRODUCT TITLE (Sticky on swiping left/right; animates only on initial PLP open) */}
-                              <motion.div
-                                key={isEntrancePhase && idx === safeIndex ? `content-title-${product.id}-${animationKey}` : `content-title-${idx}`}
-                                initial={
-                                  isEntrancePhase && idx === safeIndex
-                                    ? {
-                                        y: tuning.contentSlideDistance,
-                                        opacity: tuning.contentStartOpacity,
-                                      }
-                                    : false
-                                }
-                                animate={{
-                                  y: 0,
-                                  opacity: 1,
-                                }}
-                                transition={
-                                  isEntrancePhase && idx === safeIndex
-                                    ? {
-                                        y: {
-                                          duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay,
-                                          ease: [0.16, 1, 0.3, 1],
-                                        },
-                                        opacity: {
-                                          duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay,
-                                          ease: 'easeOut',
-                                        },
-                                      }
-                                    : { duration: 0 }
-                                }
+                              {/* 1. BRAND & PRODUCT TITLE (Sticky in place) */}
+                              <div
+                                key={`content-title-${product.id}`}
                                 className="px-4 pt-2.5 pointer-events-none select-none"
                               >
                                 <span className="text-[11px] font-medium text-[#8E8E93] border-b border-dotted border-[#8E8E93] pb-0.5 inline-block">
@@ -1273,7 +1250,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                 <h1 className="text-[15px] font-semibold text-[#FFFFFF] leading-snug mt-1">
                                   {product.title}
                                 </h1>
-                              </motion.div>
+                              </div>
 
                               {/* 2. PRICING */}
                               <motion.div
@@ -1282,7 +1259,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: 0,
+                                        opacity: tuning.contentStartOpacity,
                                       }
                                     : false
                                 }
@@ -1327,7 +1304,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: 0,
+                                        opacity: tuning.contentStartOpacity,
                                       }
                                     : false
                                 }
@@ -1393,7 +1370,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: 0,
+                                        opacity: tuning.contentStartOpacity,
                                       }
                                     : false
                                 }

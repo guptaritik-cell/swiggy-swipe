@@ -88,21 +88,33 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
   // Entrance choreography tracking (true only during card open from PLP or replay)
   const [animationKey, setAnimationKey] = useState<number>(0);
+  const [contentAnimKey, setContentAnimKey] = useState<number>(0);
+  const [dockEntranceKey, setDockEntranceKey] = useState<number>(0);
   const [entranceStep, setEntranceStep] = useState<number>(0);
   const [isEntrancePhase, setIsEntrancePhase] = useState<boolean>(false);
+  const [isCartEntrancePhase, setIsCartEntrancePhase] = useState<boolean>(false);
   const prevIndexRef = useRef<number | null>(null);
   const prevReplayRef = useRef<number | undefined>(replayTrigger);
 
   const startEntranceChoreography = useCallback(() => {
     setAnimationKey(prev => prev + 1);
+    setContentAnimKey(prev => prev + 1);
+    setDockEntranceKey(prev => prev + 1);
     setEntranceStep(0);
     setIsEntrancePhase(true);
+    setIsCartEntrancePhase(true);
     const stepTimer = setTimeout(() => {
       setEntranceStep(1);
     }, 40);
 
+    const finishTimer = setTimeout(() => {
+      setIsEntrancePhase(false);
+      setIsCartEntrancePhase(false);
+    }, 1200);
+
     return () => {
       clearTimeout(stepTimer);
+      clearTimeout(finishTimer);
     };
   }, []);
 
@@ -158,14 +170,18 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     } else if (!isNowOpen) {
       setEntranceStep(0);
       setIsEntrancePhase(false);
+      setIsCartEntrancePhase(false);
       setShowSwipeDownNudge(false);
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
       if (nudgeHideTimerRef.current) clearTimeout(nudgeHideTimerRef.current);
     } else {
-      // Swiping between products while already open - do NOT trigger nudge
+      // Swiping between products while already open - do NOT trigger nudge or top-to-bottom cart drop
       setShowSwipeDownNudge(false);
       if (nudgeTimerRef.current) clearTimeout(nudgeTimerRef.current);
       if (nudgeHideTimerRef.current) clearTimeout(nudgeHideTimerRef.current);
+      // But DO trigger content entrance animation for the newly selected product
+      setContentAnimKey(prev => prev + 1);
+      setIsCartEntrancePhase(false);
     }
   }, [
     activeIndex,
@@ -234,7 +250,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   const isScrolled = currentScrollTop > 15;
   const nudgeShiftY = (showSwipeDownNudge && !isScrolled) ? 8 : 0;
 
-  const handleOpenProduct = useCallback((index: number) => {
+  const handleOpenProduct = useCallback((index: number, isFromPLP: boolean = false) => {
     setIsClosing(false);
     setDragY(0);
     setDragX(0);
@@ -242,8 +258,17 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setIsDragging(false);
     setIsImageDragging(false);
     setIsPulling(false);
-    setIsEntrancePhase(true);
-    setAnimationKey(prev => prev + 1);
+    if (isFromPLP) {
+      setIsEntrancePhase(true);
+      setIsCartEntrancePhase(true);
+      setAnimationKey(prev => prev + 1);
+      setContentAnimKey(prev => prev + 1);
+      setDockEntranceKey(prev => prev + 1);
+    } else {
+      setIsEntrancePhase(false);
+      setIsCartEntrancePhase(false);
+      setContentAnimKey(prev => prev + 1);
+    }
     if (onActiveIndexChange) {
       onActiveIndexChange(index);
     } else {
@@ -301,12 +326,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     }, 1800);
   };
 
-  // Smoothly trigger collapse back into small card in PLP
+  // Smoothly trigger collapse back into small card in PLP with ease out curve
   const handleCloseProduct = useCallback(() => {
     setIsClosing(true);
-    setDragY(0);
-    setDragX(0);
-    setImageDragX(0);
     setIsDragging(false);
     setIsImageDragging(false);
     setIsPulling(false);
@@ -318,10 +340,14 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     }
     onProductSelect?.(null);
 
+    const closeDurationMs = (tuning.closeDuration ?? 0.42) * 1000;
     setTimeout(() => {
       setIsClosing(false);
-    }, 450);
-  }, [onActiveIndexChange, onProductSelect]);
+      setDragY(0);
+      setDragX(0);
+      setImageDragX(0);
+    }, closeDurationMs + 50);
+  }, [onActiveIndexChange, onProductSelect, tuning.closeDuration]);
 
   // Keyboard navigation support
   useEffect(() => {
@@ -425,7 +451,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
       setDragX(effectiveDx);
     } else if (gestureTypeRef.current === 'pull_down') {
       const threshold = tuning.dragCloseThreshold || 80;
-      const dampedY = dy <= threshold ? dy : threshold + Math.pow(dy - threshold, 0.8);
+      const dampedY = dy <= threshold ? dy : threshold + Math.pow(dy - threshold, 0.85);
       setDragY(dampedY);
     }
   };
@@ -672,8 +698,15 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               <motion.div
                 key={`grid-item-${product.id}`}
                 layoutId={`product-card-${product.id}`}
-                transition={smoothSpringTransition}
-                onClick={() => handleOpenProduct(idx)}
+                transition={
+                  isClosing
+                    ? {
+                        duration: tuning.closeDuration ?? 0.42,
+                        ease: [0.16, 1, 0.3, 1],
+                      }
+                    : smoothSpringTransition
+                }
+                onClick={() => handleOpenProduct(idx, true)}
                 style={{
                   opacity: isSelectedOpen ? 0 : 1,
                   pointerEvents: currentProduct ? 'none' : 'auto',
@@ -766,11 +799,18 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
           <motion.div
             key="pdp-modal-overlay"
             layoutId={`product-card-${currentProduct.id}`}
-            transition={smoothSpringTransition}
+            transition={
+              isClosing
+                ? {
+                    duration: tuning.closeDuration ?? 0.42,
+                    ease: [0.16, 1, 0.3, 1],
+                  }
+                : smoothSpringTransition
+            }
             animate={{
-              y: dragY,
-              scale: 1 - Math.min(dragY / 1200, 0.04),
-              borderRadius: Math.min(24, Math.max(0, dragY * 0.3)),
+              y: isClosing ? 0 : dragY,
+              scale: isClosing ? 1 : 1 - Math.min(dragY / 1500, 0.05),
+              borderRadius: isClosing ? 12 : Math.min(24, Math.max(0, dragY * 0.2)),
             }}
             className={`absolute inset-0 z-50 flex flex-col bg-[#0D0D0D] overflow-hidden ${
               tuning.enableBackdropBlur ? 'backdrop-blur-xl' : ''
@@ -988,8 +1028,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     const currentHeroCardHeight = Math.round(currentHeroCardWidth * 1.12);
                     // Rating, heart, sharing icons smoothly shift down from the image on scroll (linear curve shifting)
                     const iconShiftY = Math.min(slideScroll * 0.85, 52);
-                    const iconInset = Math.max(2, 14 - (slideScroll / 40) * 12);
-                    const isScrolledDown = slideScroll > 20;
+                    const iconInset0 = Math.max(2,14 - (slideScroll / 40) * 12);
+                    const iconInset = Math.max(-52, -34 - (slideScroll / 40) * 12);
+                    const isScrolledDown = slideScroll > 60;
 
                     return (
                       <div
@@ -1084,7 +1125,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                 {/* RATING BADGE AT BOTTOM-LEFT */}
                                 <div
                                   style={{
-                                    left: `${iconInset}px`,
+                                    left: `${iconInset0}px`,
                                     bottom: '14px',
                                   }}
                                   className={`absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
@@ -1117,7 +1158,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     aria-label="Wishlist"
                                   >
                                     <Heart
-                                      size={isScrolledDown ? 18 : 16}
+                                      size={isScrolledDown ? 18 : 18}
                                       className={isLiked ? "fill-red-500 text-red-500" : "text-white"}
                                     />
                                   </button>
@@ -1136,7 +1177,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     }`}
                                     aria-label="Share"
                                   >
-                                    <Share size={isScrolledDown ? 18 : 15} className="text-white" />
+                                    <Share size={isScrolledDown ? 18 : 18} className="text-white" />
                                   </button>
                                 </div>
                               </div>
@@ -1151,12 +1192,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                             >
                               {/* 1. BRAND & PRODUCT TITLE */}
                               <motion.div
-                                key={idx === safeIndex ? `content-title-${animationKey}` : `content-title-${idx}`}
+                                key={idx === safeIndex ? `content-title-${product.id}-${contentAnimKey}` : `content-title-${idx}`}
                                 initial={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: tuning.contentStartOpacity,
+                                        opacity: 0,
                                       }
                                     : false
                                 }
@@ -1165,7 +1206,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   opacity: 1,
                                 }}
                                 transition={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
@@ -1192,12 +1233,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
                               {/* 2. PRICING */}
                               <motion.div
-                                key={idx === safeIndex ? `content-price-${animationKey}` : `content-price-${idx}`}
+                                key={idx === safeIndex ? `content-price-${product.id}-${contentAnimKey}` : `content-price-${idx}`}
                                 initial={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: tuning.contentStartOpacity,
+                                        opacity: 0,
                                       }
                                     : false
                                 }
@@ -1206,7 +1247,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   opacity: 1,
                                 }}
                                 transition={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
@@ -1237,12 +1278,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
                               {/* 3. PURPLE BADGE (POPchop Offer Banner) */}
                               <motion.div
-                                key={idx === safeIndex ? `content-purple-badge-${animationKey}` : `content-purple-badge-${idx}`}
+                                key={idx === safeIndex ? `content-purple-badge-${product.id}-${contentAnimKey}` : `content-purple-badge-${idx}`}
                                 initial={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: tuning.contentStartOpacity,
+                                        opacity: 0,
                                       }
                                     : false
                                 }
@@ -1251,7 +1292,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   opacity: 1,
                                 }}
                                 transition={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
@@ -1303,12 +1344,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
                               {/* 4. BELOW TEXT (Pay Zero Chip, Size Selector, Details) */}
                               <motion.div
-                                key={idx === safeIndex ? `content-below-text-${animationKey}` : `content-below-text-${idx}`}
+                                key={idx === safeIndex ? `content-below-text-${product.id}-${contentAnimKey}` : `content-below-text-${idx}`}
                                 initial={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: tuning.contentStartOpacity,
+                                        opacity: 0,
                                       }
                                     : false
                                 }
@@ -1317,7 +1358,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   opacity: 1,
                                 }}
                                 transition={
-                                  isEntrancePhase && idx === safeIndex
+                                  idx === safeIndex
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
@@ -1419,11 +1460,11 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                             </div>
                           </div>
 
-                          {/* ADD TO CART BUTTON (ENTRANCE ANIMATION: TOP -> BOTTOM) */}
+                          {/* ADD TO CART BUTTON (ENTRANCE ANIMATION: TOP -> BOTTOM only on PLP open) */}
                           <motion.div
-                            key={idx === safeIndex ? `add-to-cart-container-${animationKey}` : `add-to-cart-container-${idx}`}
+                            key={isCartEntrancePhase && idx === safeIndex ? `add-to-cart-container-${product.id}-${animationKey}` : `add-to-cart-container-${idx}`}
                             initial={
-                              isEntrancePhase && idx === safeIndex
+                              isCartEntrancePhase && idx === safeIndex
                                 ? {
                                     y: tuning.addToCartStartY,
                                     opacity: tuning.addToCartStartOpacity,
@@ -1435,7 +1476,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                               opacity: tuning.addToCartEndOpacity ?? 1,
                             }}
                             transition={
-                              isEntrancePhase && idx === safeIndex
+                              isCartEntrancePhase && idx === safeIndex
                                 ? {
                                     y: {
                                       duration: tuning.addToCartDuration,
@@ -1504,8 +1545,13 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 onWheel={handleDockWheel}
                 className="bottom-dock-container w-full overflow-hidden relative flex items-center py-1 cursor-grab active:cursor-grabbing select-none shrink-0"
               >
+                {/* STICKY ACTIVE INDICATOR (White active film and active white border) */}
+                <div
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none rounded-[22px] w-[44px] h-[58px] ring-2 ring-white ring-offset-2 ring-offset-[#0D0D0D] scale-105 shadow-lg z-20 bg-white/20"
+                />
+
                 <motion.div
-                  key={`dock-track-${animationKey}`}
+                  key={`dock-track-${dockEntranceKey}`}
                   className="flex items-center"
                   style={{ gap: `${DOCK_ITEM_GAP}px` }}
                   initial={{
@@ -1544,7 +1590,14 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   }
                 >
                   {products.map((p, idx) => {
-                    const isSelected = idx === safeIndex;
+                    const currentTrackX = isClosing
+                      ? targetDockX
+                      : targetDockX + dockDragOffset + (dragX / (containerWidth + PRODUCT_SLIDE_GAP)) * DOCK_ITEM_STEP;
+                    const centerOffset = dockWidth / 2 - DOCK_ITEM_WIDTH / 2;
+                    const distFromCenter = Math.abs((currentTrackX + idx * DOCK_ITEM_STEP) - centerOffset);
+                    const centerProximity = Math.max(0, 1 - distFromCenter / DOCK_ITEM_STEP);
+                    const thumbOpacity = 0.55 + centerProximity * 0.45;
+
                     return (
                       <button
                         key={`bottom-thumb-${p.id}-${idx}`}
@@ -1552,11 +1605,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                           e.stopPropagation();
                           handleOpenProduct(idx);
                         }}
-                        className={`relative shrink-0 rounded-[22px] transition-all duration-200 active:scale-95 flex items-center justify-center cursor-pointer ${
-                          isSelected
-                            ? 'w-[44px] h-[58px] ring-2 ring-white ring-offset-2 ring-offset-[#0D0D0D] scale-105 shadow-lg z-10'
-                            : 'w-[44px] h-[58px] border border-white/20 opacity-60 hover:opacity-100 hover:scale-105'
-                        }`}
+                        style={{
+                          opacity: thumbOpacity,
+                        }}
+                        className="relative shrink-0 rounded-[22px] transition-transform duration-200 active:scale-95 flex items-center justify-center cursor-pointer w-[44px] h-[58px] border border-white/20 hover:scale-105"
                         aria-label={`Select ${p.title}`}
                       >
                         <div className="w-full h-full rounded-[22px] overflow-hidden bg-[#1C1C1E] pointer-events-none select-none">

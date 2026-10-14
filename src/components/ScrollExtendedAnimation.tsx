@@ -396,6 +396,7 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           springMass: 0.85,
           dragCloseThreshold: 110,
           dragVelocityThreshold: 480,
+          closeDuration: 0.42,
           carouselSensitivity: 60,
           scrollCollapseDistance: 170,
           addToCartStartY: -380,
@@ -426,6 +427,7 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           springMass: 0.95,
           dragCloseThreshold: 90,
           dragVelocityThreshold: 350,
+          closeDuration: 0.38,
           carouselSensitivity: 50,
           scrollCollapseDistance: 150,
           addToCartStartY: -400,
@@ -456,6 +458,7 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           springMass: 0.6,
           dragCloseThreshold: 80,
           dragVelocityThreshold: 300,
+          closeDuration: 0.28,
           carouselSensitivity: 40,
           scrollCollapseDistance: 140,
           addToCartStartY: -320,
@@ -486,6 +489,7 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           springMass: 1.1,
           dragCloseThreshold: 140,
           dragVelocityThreshold: 600,
+          closeDuration: 0.55,
           carouselSensitivity: 80,
           scrollCollapseDistance: 210,
           addToCartStartY: -420,
@@ -706,10 +710,10 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
             <div>
               <span className="font-semibold text-[11px] uppercase tracking-wider text-amber-400 block">
-                Pull Down to Close Threshold
+                Pull Down to Close & Motion
               </span>
               <span className="text-[10px] text-[#71717A] block">
-                Pull down distance in px needed to dismiss card
+                Pull down distance and smooth ease-out dismissal duration
               </span>
             </div>
 
@@ -721,10 +725,26 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
               <input
                 type="range"
                 min="30"
-                max="200"
+                max="500"
                 step="5"
                 value={tuning.dragCloseThreshold}
                 onChange={(e) => onUpdateTuning({ ...tuning, dragCloseThreshold: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-amber-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Close Duration (Ease-Out)</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{tuning.closeDuration ?? 0.42} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.2"
+                max="1.0"
+                step="0.02"
+                value={tuning.closeDuration ?? 0.42}
+                onChange={(e) => onUpdateTuning({ ...tuning, closeDuration: Number(e.target.value), selectedPreset: 'custom' })}
                 className="w-full accent-amber-400 bg-[#1F1F1F] h-1.5 rounded-lg"
               />
             </div>

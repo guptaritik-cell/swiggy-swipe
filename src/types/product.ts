@@ -77,6 +77,7 @@ export interface AnimationTuningConfig {
   // Drag-to-close gesture parameters
   dragCloseThreshold: number; // distance in px to trigger close (e.g. 100)
   dragVelocityThreshold: number; // velocity to fling close (e.g. 450)
+  closeDuration: number; // Duration of smooth ease-out closing animation in seconds (e.g. 0.42)
   
   // Horizontal Carousel swipe parameters
   carouselSensitivity: number; // swipe threshold to page (e.g. 50)
@@ -122,6 +123,7 @@ export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
   springMass: 0.85,
   dragCloseThreshold: 110,
   dragVelocityThreshold: 480,
+  closeDuration: 0.42,
   carouselSensitivity: 60,
   carouselSpringBounce: 0.08,
   scrollCollapseDistance: 170,

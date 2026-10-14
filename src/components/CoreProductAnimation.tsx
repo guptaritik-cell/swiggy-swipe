@@ -939,7 +939,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               <motion.div
                 layout
                 transition={{
-                  layout: { duration: 0.28, ease: 'linear' },
+                  layout: { duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: [0.16, 1, 0.3, 1] },
                 }}
                 className={`flex items-center gap-2 pointer-events-auto ${
                   isScrolled ? 'ml-auto mt-0' : 'mx-auto mt-10'
@@ -953,8 +953,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     pointerEvents: isScrolled ? 'auto' : 'none',
                   }}
                   transition={{
-                    opacity: { duration: 0.24, ease: 'easeOut' },
-                    width: { duration: 0.24, ease: 'easeOut' },
+                    opacity: { duration: tuning.searchIconFadeDuration ?? 0.32, ease: 'easeOut' },
+                    width: { duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: [0.16, 1, 0.3, 1] },
                   }}
                   className="overflow-hidden h-8 flex items-center justify-center text-white"
                   aria-label="Search"
@@ -970,7 +970,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     boxShadow: isScrolled ? 'none' : '0 4px 6px -1px rgba(0,0,0,0.2)',
                   }}
                   transition={{
-                    duration: 0.24,
+                    duration: tuning.cartBadgeShiftDuration ?? 0.18,
                     ease: 'easeOut',
                   }}
                   className="w-8 h-8 rounded-full border flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
@@ -989,7 +989,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               <motion.div
                 initial={false}
                 animate={{ width: isScrolled ? 0 : 32 }}
-                transition={{ duration: 0.28, ease: 'linear' }}
+                transition={{ duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: 'linear' }}
                 className="shrink-0 pointer-events-none overflow-hidden"
               />
             </motion.div>

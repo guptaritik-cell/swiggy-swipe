@@ -115,6 +115,10 @@ export interface AnimationTuningConfig {
   bottomCirclesDamping: number; // Spring damping (e.g. 18)
   bottomCirclesMass: number; // Spring mass (e.g. 0.8)
   bottomCirclesStartOpacity: number; // Starting opacity (0.0 to 1.0)
+
+  // 4. Header Top Bar Scroll Transition (Cart & Pop Box Shift & Search Appearance)
+  cartBadgeShiftDuration: number; // Duration in seconds for shifting cart & pop box from middle to top right (e.g. 0.18)
+  searchIconFadeDuration: number; // Duration in seconds for search icon smooth fade/expand (e.g. 0.32)
 }
 
 export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
@@ -155,4 +159,8 @@ export const DEFAULT_TUNING_CONFIG: AnimationTuningConfig = {
   bottomCirclesDamping: 18,
   bottomCirclesMass: 0.8,
   bottomCirclesStartOpacity: 0.0,
+
+  // 4. Header Top Bar Scroll Transition
+  cartBadgeShiftDuration: 0.18,
+  searchIconFadeDuration: 0.32,
 };

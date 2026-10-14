@@ -416,6 +416,8 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           bottomCirclesDamping: 18,
           bottomCirclesMass: 0.8,
           bottomCirclesStartOpacity: 0.0,
+          cartBadgeShiftDuration: 0.18,
+          searchIconFadeDuration: 0.32,
         });
         break;
       case 'bouncy':
@@ -447,6 +449,8 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           bottomCirclesDamping: 14,
           bottomCirclesMass: 0.8,
           bottomCirclesStartOpacity: 0.0,
+          cartBadgeShiftDuration: 0.16,
+          searchIconFadeDuration: 0.30,
         });
         break;
       case 'snappy':
@@ -478,6 +482,8 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           bottomCirclesDamping: 24,
           bottomCirclesMass: 0.7,
           bottomCirclesStartOpacity: 0.0,
+          cartBadgeShiftDuration: 0.14,
+          searchIconFadeDuration: 0.25,
         });
         break;
       case 'smooth':
@@ -509,6 +515,8 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
           bottomCirclesDamping: 22,
           bottomCirclesMass: 0.9,
           bottomCirclesStartOpacity: 0.0,
+          cartBadgeShiftDuration: 0.22,
+          searchIconFadeDuration: 0.38,
         });
         break;
       default:
@@ -988,6 +996,50 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
                 value={tuning.bottomCirclesDamping}
                 onChange={(e) => onUpdateTuning({ ...tuning, bottomCirclesDamping: Number(e.target.value), selectedPreset: 'custom' })}
                 className="w-full accent-sky-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+          </div>
+
+          {/* 4. Header Top Bar Scroll Transition (Cart & Pop Box Shift & Search Appearance) */}
+          <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
+            <div>
+              <span className="font-semibold text-[11px] uppercase tracking-wider text-emerald-400 block">
+                4. Header Cart & Pop Box Shift
+              </span>
+              <span className="text-[10px] text-[#71717A] block">
+                Fast shift from middle to top right + smooth search icon appearance
+              </span>
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Cart & Pop Box Shift Duration</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{(tuning.cartBadgeShiftDuration ?? 0.18).toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.08"
+                max="0.45"
+                step="0.01"
+                value={tuning.cartBadgeShiftDuration ?? 0.18}
+                onChange={(e) => onUpdateTuning({ ...tuning, cartBadgeShiftDuration: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
+              />
+            </div>
+
+            <div className="space-y-1">
+              <div className="flex justify-between text-[11px]">
+                <span className="text-[#71717A]">Search Icon Fade Duration</span>
+                <span className="font-mono text-[#FFFFFF] font-semibold">{(tuning.searchIconFadeDuration ?? 0.32).toFixed(2)} s</span>
+              </div>
+              <input
+                type="range"
+                min="0.10"
+                max="0.60"
+                step="0.02"
+                value={tuning.searchIconFadeDuration ?? 0.32}
+                onChange={(e) => onUpdateTuning({ ...tuning, searchIconFadeDuration: Number(e.target.value), selectedPreset: 'custom' })}
+                className="w-full accent-emerald-400 bg-[#1F1F1F] h-1.5 rounded-lg"
               />
             </div>
           </div>

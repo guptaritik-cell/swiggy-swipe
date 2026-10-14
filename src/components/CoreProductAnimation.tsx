@@ -95,26 +95,32 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   const [isCartEntrancePhase, setIsCartEntrancePhase] = useState<boolean>(false);
   const prevIndexRef = useRef<number | null>(null);
   const prevReplayRef = useRef<number | undefined>(replayTrigger);
+  const entranceStepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const entranceFinishTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const startEntranceChoreography = useCallback(() => {
+    if (entranceStepTimerRef.current) clearTimeout(entranceStepTimerRef.current);
+    if (entranceFinishTimerRef.current) clearTimeout(entranceFinishTimerRef.current);
+
     setAnimationKey(prev => prev + 1);
     setContentAnimKey(prev => prev + 1);
     setDockEntranceKey(prev => prev + 1);
     setEntranceStep(0);
     setIsEntrancePhase(true);
     setIsCartEntrancePhase(true);
-    const stepTimer = setTimeout(() => {
+
+    entranceStepTimerRef.current = setTimeout(() => {
       setEntranceStep(1);
     }, 40);
 
-    const finishTimer = setTimeout(() => {
+    entranceFinishTimerRef.current = setTimeout(() => {
       setIsEntrancePhase(false);
       setIsCartEntrancePhase(false);
-    }, 1200);
+    }, 1500);
 
     return () => {
-      clearTimeout(stepTimer);
-      clearTimeout(finishTimer);
+      if (entranceStepTimerRef.current) clearTimeout(entranceStepTimerRef.current);
+      if (entranceFinishTimerRef.current) clearTimeout(entranceFinishTimerRef.current);
     };
   }, []);
 
@@ -131,7 +137,11 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
         prevTuningRef.current.contentSlideDistance !== tuning.contentSlideDistance ||
         prevTuningRef.current.contentDuration !== tuning.contentDuration ||
         prevTuningRef.current.contentDelay !== tuning.contentDelay ||
-        prevTuningRef.current.contentStartOpacity !== tuning.contentStartOpacity
+        prevTuningRef.current.contentStartOpacity !== tuning.contentStartOpacity ||
+        prevTuningRef.current.bottomCirclesDistance !== tuning.bottomCirclesDistance ||
+        prevTuningRef.current.bottomCirclesDuration !== tuning.bottomCirclesDuration ||
+        prevTuningRef.current.bottomCirclesDelay !== tuning.bottomCirclesDelay ||
+        prevTuningRef.current.bottomCirclesStartOpacity !== tuning.bottomCirclesStartOpacity
       ) {
         prevTuningRef.current = tuning;
         const timer = setTimeout(() => {
@@ -164,9 +174,11 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
         }, 2000);
       }, 700);
 
-      return startEntranceChoreography();
+      if (!isEntrancePhase) {
+        startEntranceChoreography();
+      }
     } else if (isNowOpen && replayChanged) {
-      return startEntranceChoreography();
+      startEntranceChoreography();
     } else if (!isNowOpen) {
       setEntranceStep(0);
       setIsEntrancePhase(false);
@@ -187,6 +199,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     activeIndex,
     replayTrigger,
     startEntranceChoreography,
+    isEntrancePhase,
   ]);
 
   // Track scroll position per product slide
@@ -259,11 +272,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setIsImageDragging(false);
     setIsPulling(false);
     if (isFromPLP) {
-      setIsEntrancePhase(true);
-      setIsCartEntrancePhase(true);
-      setAnimationKey(prev => prev + 1);
-      setContentAnimKey(prev => prev + 1);
-      setDockEntranceKey(prev => prev + 1);
+      startEntranceChoreography();
     } else {
       setIsEntrancePhase(false);
       setIsCartEntrancePhase(false);
@@ -277,7 +286,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     if (products[index]) {
       onProductSelect?.(products[index]);
     }
-  }, [onActiveIndexChange, onProductSelect, products]);
+  }, [onActiveIndexChange, onProductSelect, products, startEntranceChoreography]);
 
   // Navigate to next product
   const handleNextProduct = useCallback(() => {
@@ -366,11 +375,19 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   }, [currentProduct, handleNextProduct, handlePrevProduct, handleCloseProduct]);
 
   // Scroll listener per slide
+  const pointerStartScrollTopRef = useRef<number>(0);
+  const lastScrolledDownTimeRef = useRef<number>(0);
+  const wheelGestureStartedAtTopRef = useRef<boolean>(false);
+  const wheelGestureTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const handleSlideScroll = (e: React.UIEvent<HTMLDivElement>, idx: number) => {
     if (e.currentTarget.scrollLeft !== 0) {
       e.currentTarget.scrollLeft = 0;
     }
     const st = e.currentTarget.scrollTop;
+    if (st > 4) {
+      lastScrolledDownTimeRef.current = performance.now();
+    }
     setScrollTops(prev => ({ ...prev, [idx]: st }));
     if (idx === safeIndex) {
       onScrollDelta?.(st);
@@ -402,13 +419,15 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     pointerStartTimeRef.current = performance.now();
     isPointerDownRef.current = true;
     gestureTypeRef.current = null;
+    pointerStartScrollTopRef.current = slideScrollRefs.current[safeIndex]?.scrollTop ?? scrollTops[safeIndex] ?? 0;
   };
 
   const handleSliderPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
     if (!isPointerDownRef.current) return;
     const dx = e.clientX - pointerStartXRef.current;
     const dy = e.clientY - pointerStartYRef.current;
-    const activeSt = scrollTops[safeIndex] || 0;
+    const activeSt = slideScrollRefs.current[safeIndex]?.scrollTop ?? scrollTops[safeIndex] ?? 0;
+    const isSettledAtTop = performance.now() - lastScrolledDownTimeRef.current > 300;
 
     if (!gestureTypeRef.current) {
       if (Math.hypot(dx, dy) > 7) {
@@ -423,7 +442,13 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
           try {
             (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
           } catch {}
-        } else if (dy > 8 && dy > Math.abs(dx) * 1.2 && activeSt <= 2) {
+        } else if (
+          dy > 8 &&
+          dy > Math.abs(dx) * 1.2 &&
+          activeSt <= 2 &&
+          pointerStartScrollTopRef.current <= 2 &&
+          isSettledAtTop
+        ) {
           gestureTypeRef.current = 'pull_down';
           setIsPulling(true);
           try {
@@ -507,7 +532,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     } else if (gestureTypeRef.current === 'pull_down') {
       setIsPulling(false);
       const threshold = tuning.dragCloseThreshold || 80;
-      if (totalDy >= threshold || dragY >= threshold) {
+      const isSettledAtTop = performance.now() - lastScrolledDownTimeRef.current > 300;
+      if (
+        (totalDy >= threshold || dragY >= threshold) &&
+        pointerStartScrollTopRef.current <= 2 &&
+        isSettledAtTop
+      ) {
         handleCloseProduct();
       } else {
         setDragY(0);
@@ -522,15 +552,28 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
   const handleWheel = (e: React.WheelEvent<HTMLDivElement>) => {
     const isOverImage = !!(e.target as HTMLElement).closest('.product-hero-carousel');
-    const activeSt = scrollTops[safeIndex] || 0;
-    if (activeSt <= 2 && e.deltaY < -6) {
+    const activeSt = slideScrollRefs.current[safeIndex]?.scrollTop ?? scrollTops[safeIndex] ?? 0;
+
+    // Track whether this wheel gesture started while already settled at the top of the product card
+    if (!wheelGestureTimerRef.current) {
+      wheelGestureStartedAtTopRef.current = activeSt <= 2 && (performance.now() - lastScrolledDownTimeRef.current > 300);
+    }
+    if (wheelGestureTimerRef.current) clearTimeout(wheelGestureTimerRef.current);
+    wheelGestureTimerRef.current = setTimeout(() => {
+      wheelGestureTimerRef.current = null;
+      wheelGestureStartedAtTopRef.current = false;
+    }, 250);
+
+    const isSettledAtTop = performance.now() - lastScrolledDownTimeRef.current > 300;
+
+    if (activeSt <= 2 && e.deltaY < -6 && wheelGestureStartedAtTopRef.current && isSettledAtTop) {
       setDragY(prev => Math.min(50, prev + Math.abs(e.deltaY) * 0.45));
       setIsPulling(true);
 
       if (wheelTimeoutRef.current) clearTimeout(wheelTimeoutRef.current);
       wheelTimeoutRef.current = setTimeout(() => {
         handleCloseProduct();
-      }, 90);
+      }, 120);
     } else if (Math.abs(e.deltaX) > 28) {
       if (wheelTimeoutRef.current) return;
       if (isOverImage && currentProduct) {
@@ -568,6 +611,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   const handleDockPointerDown = (e: React.PointerEvent) => {
     dockPointerStartXRef.current = e.clientX;
     dockIsDraggingRef.current = true;
+    setIsEntrancePhase(false);
   };
 
   const handleDockPointerMove = (e: React.PointerEvent) => {
@@ -1190,14 +1234,14 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                               }}
                               className="product-content-body flex flex-col w-full max-w-full"
                             >
-                              {/* 1. BRAND & PRODUCT TITLE */}
+                              {/* 1. BRAND & PRODUCT TITLE (Sticky on swiping left/right; animates only on initial PLP open) */}
                               <motion.div
-                                key={idx === safeIndex ? `content-title-${product.id}-${contentAnimKey}` : `content-title-${idx}`}
+                                key={isEntrancePhase && idx === safeIndex ? `content-title-${product.id}-${animationKey}` : `content-title-${idx}`}
                                 initial={
-                                  idx === safeIndex
+                                  isEntrancePhase && idx === safeIndex
                                     ? {
                                         y: tuning.contentSlideDistance,
-                                        opacity: 0,
+                                        opacity: tuning.contentStartOpacity,
                                       }
                                     : false
                                 }
@@ -1206,7 +1250,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   opacity: 1,
                                 }}
                                 transition={
-                                  idx === safeIndex
+                                  isEntrancePhase && idx === safeIndex
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
@@ -1251,12 +1295,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay + 0.08,
+                                          delay: tuning.contentDelay,
                                           ease: [0.16, 1, 0.3, 1],
                                         },
                                         opacity: {
                                           duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay + 0.08,
+                                          delay: tuning.contentDelay,
                                           ease: 'easeOut',
                                         },
                                       }
@@ -1296,12 +1340,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                     ? {
                                         y: {
                                           duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay + 0.16,
+                                          delay: tuning.contentDelay + 0.08,
                                           ease: [0.16, 1, 0.3, 1],
                                         },
                                         opacity: {
                                           duration: tuning.contentDuration,
-                                          delay: tuning.contentDelay + 0.16,
+                                          delay: tuning.contentDelay + 0.08,
                                           ease: 'easeOut',
                                         },
                                       }
@@ -1546,7 +1590,18 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 className="bottom-dock-container w-full overflow-hidden relative flex items-center py-1 cursor-grab active:cursor-grabbing select-none shrink-0"
               >
                 {/* STICKY ACTIVE INDICATOR (White active film and active white border) */}
-                <div
+                <motion.div
+                  initial={isEntrancePhase ? { opacity: 0 } : false}
+                  animate={{ opacity: isClosing ? 0 : 1 }}
+                  transition={
+                    isEntrancePhase
+                      ? {
+                          duration: tuning.bottomCirclesDuration || 0.55,
+                          delay: tuning.bottomCirclesDelay || 0.3,
+                          ease: 'easeOut',
+                        }
+                      : { duration: 0.2, ease: 'easeOut' }
+                  }
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none rounded-[22px] w-[44px] h-[58px] ring-2 ring-white ring-offset-2 ring-offset-[#0D0D0D] scale-105 shadow-lg z-20 bg-white/20"
                 />
 
@@ -1554,40 +1609,25 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                   key={`dock-track-${dockEntranceKey}`}
                   className="flex items-center"
                   style={{ gap: `${DOCK_ITEM_GAP}px` }}
-                  initial={{
-                    x: targetDockX + tuning.bottomCirclesDistance,
-                    opacity: tuning.bottomCirclesStartOpacity,
-                  }}
+                  initial={false}
                   animate={{
                     x: isClosing
                       ? targetDockX
                       : targetDockX + dockDragOffset + (dragX / (containerWidth + PRODUCT_SLIDE_GAP)) * DOCK_ITEM_STEP,
                     opacity: isClosing ? 0 : 1,
                   }}
-                  transition={
-                    isEntrancePhase
-                      ? {
-                          x: {
-                            type: 'spring',
-                            stiffness: tuning.bottomCirclesStiffness || 240,
-                            damping: tuning.bottomCirclesDamping || 18,
-                            mass: tuning.bottomCirclesMass || 0.8,
-                            bounce: tuning.bottomCirclesBounce ?? 0.25,
-                            delay: isClosing ? 0 : tuning.bottomCirclesDelay,
-                          },
-                          opacity: {
-                            duration: tuning.bottomCirclesDuration,
-                            ease: 'easeOut',
-                            delay: isClosing ? 0 : tuning.bottomCirclesDelay,
-                          },
-                        }
-                      : {
-                          type: 'spring',
-                          stiffness: tuning.springStiffness || 320,
-                          damping: Math.max(tuning.springDamping || 36, 34),
-                          mass: 0.8,
-                        }
-                  }
+                  transition={{
+                    x: {
+                      type: 'spring',
+                      stiffness: tuning.springStiffness || 320,
+                      damping: Math.max(tuning.springDamping || 36, 34),
+                      mass: 0.8,
+                    },
+                    opacity: {
+                      duration: 0.24,
+                      ease: 'easeOut',
+                    },
+                  }}
                 >
                   {products.map((p, idx) => {
                     const currentTrackX = isClosing
@@ -1598,17 +1638,50 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     const centerProximity = Math.max(0, 1 - distFromCenter / DOCK_ITEM_STEP);
                     const thumbOpacity = 0.55 + centerProximity * 0.45;
 
+                    const circleStagger = 0.07;
+                    const circleDelay = (tuning.bottomCirclesDelay || 0.3) + idx * circleStagger;
+
                     return (
-                      <button
-                        key={`bottom-thumb-${p.id}-${idx}`}
+                      <motion.button
+                        key={`bottom-thumb-${p.id}-${idx}-${dockEntranceKey}`}
                         onClick={(e) => {
                           e.stopPropagation();
                           handleOpenProduct(idx);
                         }}
-                        style={{
+                        initial={
+                          isEntrancePhase
+                            ? {
+                                x: tuning.bottomCirclesDistance,
+                                opacity: tuning.bottomCirclesStartOpacity,
+                              }
+                            : false
+                        }
+                        animate={{
+                          x: 0,
                           opacity: thumbOpacity,
                         }}
-                        className="relative shrink-0 rounded-[22px] transition-transform duration-200 active:scale-95 flex items-center justify-center cursor-pointer w-[44px] h-[58px] border border-white/20 hover:scale-105"
+                        transition={
+                          isEntrancePhase
+                            ? {
+                                x: {
+                                  duration: tuning.bottomCirclesDuration || 0.55,
+                                  delay: circleDelay,
+                                  ease: [0.16, 1, 0.3, 1],
+                                },
+                                opacity: {
+                                  duration: tuning.bottomCirclesDuration || 0.55,
+                                  delay: circleDelay,
+                                  ease: 'easeOut',
+                                },
+                              }
+                            : {
+                                x: { duration: 0 },
+                                opacity: { duration: 0.15, ease: 'easeOut' },
+                              }
+                        }
+                        whileTap={{ scale: 0.95 }}
+                        whileHover={{ scale: 1.05 }}
+                        className="relative shrink-0 rounded-[22px] flex items-center justify-center cursor-pointer w-[44px] h-[58px] border border-white/20"
                         aria-label={`Select ${p.title}`}
                       >
                         <div className="w-full h-full rounded-[22px] overflow-hidden bg-[#1C1C1E] pointer-events-none select-none">
@@ -1621,7 +1694,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                             }}
                           />
                         </div>
-                      </button>
+                      </motion.button>
                     );
                   })}
                 </motion.div>

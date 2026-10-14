@@ -902,13 +902,13 @@ export const TuningSidebar: React.FC<TuningSidebarProps> = ({
             </div>
           </div>
 
-          {/* 3. Bottom Circles Carousel (Slide Right to Left with Bounce) */}
+          {/* 3. Bottom Circles Carousel (Slide Right to Left Staggered) */}
           <div className="space-y-3 pt-2 border-t border-[#1F1F1F]">
             <div>
               <span className="font-semibold text-[11px] uppercase tracking-wider text-sky-400 block">
-                3. Bottom Circles (Right → Left + Bounce)
+                3. Bottom Circles (Right → Left Staggered)
               </span>
-              <span className="text-[10px] text-[#71717A] block">Parallel slide with spring bounce</span>
+              <span className="text-[10px] text-[#71717A] block">Staggered slide from right with ease-out curve</span>
             </div>
 
             <div className="space-y-1">

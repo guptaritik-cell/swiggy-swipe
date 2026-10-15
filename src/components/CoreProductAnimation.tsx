@@ -659,6 +659,9 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     mass: 0.8,
   };
 
+  // Ultra-smooth ease-in-ease-out curve for product body content settling up from the bottom
+  const contentEaseInOut = [0.4, 0, 0.2, 1] as const;
+
   return (
     <div className="relative w-full h-full bg-[#0D0D0D] text-[#FFFFFF] overflow-hidden select-none flex flex-col font-sans">
       
@@ -1273,12 +1276,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                         y: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay,
-                                          ease: [0.16, 1, 0.3, 1],
+                                          ease: contentEaseInOut,
                                         },
                                         opacity: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay,
-                                          ease: 'easeOut',
+                                          ease: contentEaseInOut,
                                         },
                                       }
                                     : { duration: 0 }
@@ -1318,12 +1321,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                         y: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay + 0.08,
-                                          ease: [0.16, 1, 0.3, 1],
+                                          ease: contentEaseInOut,
                                         },
                                         opacity: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay + 0.08,
-                                          ease: 'easeOut',
+                                          ease: contentEaseInOut,
                                         },
                                       }
                                     : { duration: 0 }
@@ -1384,12 +1387,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                         y: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay + 0.24,
-                                          ease: [0.16, 1, 0.3, 1],
+                                          ease: contentEaseInOut,
                                         },
                                         opacity: {
                                           duration: tuning.contentDuration,
                                           delay: tuning.contentDelay + 0.24,
-                                          ease: 'easeOut',
+                                          ease: contentEaseInOut,
                                         },
                                       }
                                     : { duration: 0 }

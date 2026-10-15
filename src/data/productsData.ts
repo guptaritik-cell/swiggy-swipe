@@ -73,9 +73,9 @@ export const FEATURED_PRODUCTS: ProductItem[] = [
     title: "Brown Textured Handbag With Pouch",
     brand_info: { id: 1002, name: "Haute Sauce", logo: null },
     category: { name: "Handbags & Totes", full_name: "STYLE & FASHION > Accessories > Bags" },
-    images: "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80",
+    images: "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?auto=format&fit=crop&w=800&q=80",
     galleryImages: [
-      "https://images.unsplash.com/photo-1584917865442-de89df76afd3?auto=format&fit=crop&w=800&q=80",
+      "https://images.unsplash.com/photo-1600185365926-3a2ce3cdb9eb?auto=format&fit=crop&w=800&q=80",
       "https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?auto=format&fit=crop&w=800&q=80",
     ],
     price: {

@@ -269,11 +269,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   }, []);
 
   const currentScrollTop = scrollTops[safeIndex] || 0;
-  // Frame-by-frame continuous scroll interpolation with smooth easing (0 at top, 1 at 90px for gentler settle)
-  const SCROLL_THRESHOLD = 90;
+  // Frame-by-frame continuous scroll interpolation with smooth ease-out curve
+  const SCROLL_THRESHOLD = tuning.scrollCollapseDistance || 150;
   const rawProgress = Math.min(1, Math.max(0, currentScrollTop / SCROLL_THRESHOLD));
-  // Ultra-smooth quintic ease-out curve: 1 - (1 - t)^4 for super gentle settle down
-  const scrollProgress = 1 - Math.pow(1 - rawProgress, 4);
+  // Ultra-smooth sinusoidal ease-out curve: sin(rawProgress * Math.PI / 2)
+  // Non-jerky initial slope (1.57), frame-by-frame continuous gliding, and zero-velocity tangential settling
+  const scrollProgress = Math.sin((rawProgress * Math.PI) / 2);
   const isScrolled = scrollProgress > 0.5;
   const nudgeShiftY = (showSwipeDownNudge && rawProgress < 0.2) ? 8 * (1 - rawProgress * 5) : 0;
 
@@ -1093,8 +1094,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
             <div
               className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3.5 border-b pointer-events-none"
               style={{
-                backgroundColor: `rgba(13, 13, 13, ${scrollProgress})`,
-                borderBottomColor: `rgba(38, 38, 38, ${scrollProgress})`,
+                backgroundColor: `rgba(13, 13, 13, ${scrollProgress.toFixed(3)})`,
+                borderBottomColor: `rgba(38, 38, 38, ${scrollProgress.toFixed(3)})`,
                 height: 52,
                 transform: `translate3d(0, ${nudgeShiftY}px, 0)`,
                 opacity: isClosing ? 0 : 1,
@@ -1115,7 +1116,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 }}
                 style={{
                   opacity: scrollProgress,
-                  transform: `translate3d(${-12 * (1 - scrollProgress)}px, 0, 0)`,
+                  transform: `translate3d(${(-12 * (1 - scrollProgress)).toFixed(2)}px, 0, 0)`,
                   pointerEvents: scrollProgress > 0.3 ? 'auto' : 'none',
                 }}
                 className="w-8 h-8 flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
@@ -1127,39 +1128,42 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               {/* Center to Top-Right: Cart + POPcoin Badge - Smooth continuous frame-by-frame gliding with ease-out */}
               <div
                 style={{
-                  transform: `translate3d(${badgeShiftX}px, ${badgeShiftY}px, 0)`,
+                  transform: `translate3d(${badgeShiftX.toFixed(2)}px, ${badgeShiftY.toFixed(2)}px, 0)`,
                   pointerEvents: 'auto',
                 }}
-                className="flex items-center gap-2 ml-auto mt-1"
+                className="flex items-center ml-auto mt-1"
               >
                 <button
                   style={{
                     opacity: scrollProgress,
-                    width: `${Math.round(32 * scrollProgress)}px`,
+                    width: `${(32 * scrollProgress).toFixed(2)}px`,
+                    marginRight: `${(8 * scrollProgress).toFixed(2)}px`,
                     pointerEvents: scrollProgress > 0.3 ? 'auto' : 'none',
                   }}
-                  className="overflow-hidden w-8 h-8 flex items-center justify-center text-white shrink-0"
+                  className="overflow-hidden h-8 flex items-center justify-center text-white shrink-0"
                   aria-label="Search"
                 >
-                  <Search size={20} className="text-white" />
+                  <Search size={20} className="text-white shrink-0" />
                 </button>
 
-                <button
-                  style={{
-                    backgroundColor: `rgba(28, 28, 30, ${1 - scrollProgress})`,
-                    borderColor: `rgba(255, 255, 255, ${0.1 * (1 - scrollProgress)})`,
-                    boxShadow: `0 4px 6px -1px rgba(0, 0, 0, ${0.2 * (1 - scrollProgress)})`,
-                  }}
-                  className="w-8 h-8 rounded-full border border-transparent flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
-                  aria-label="Cart"
-                >
-                  <ShoppingCart size={16} className="text-[#FFFFFF]" />
-                </button>
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    style={{
+                      backgroundColor: `rgba(28, 28, 30, ${(1 - scrollProgress).toFixed(3)})`,
+                      borderColor: `rgba(255, 255, 255, ${(0.1 * (1 - scrollProgress)).toFixed(3)})`,
+                      boxShadow: `0 4px 6px -1px rgba(0, 0, 0, ${(0.2 * (1 - scrollProgress)).toFixed(3)})`,
+                    }}
+                    className="w-8 h-8 rounded-full border border-transparent flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
+                    aria-label="Cart"
+                  >
+                    <ShoppingCart size={16} className="text-[#FFFFFF]" />
+                  </button>
 
-                {/* POP Box matching exactly the cart icon box height (h-8 = 32px) */}
-                <div className="h-7 flex items-center gap-1 px-2 border border-white/15 rounded-full bg-[#1C1C1E] backdrop-blur-md shadow-md shrink-0">
-                  <img src={APP_ASSETS.popCoin} alt="" className="w-5 h-5 object-contain" />
-                  <span className="text-sm font-semibold text-[#FFFFFF] leading-none">43K</span>
+                  {/* POP Box matching exactly the cart icon box height (h-8 = 32px) */}
+                  <div className="h-7 flex items-center gap-1 px-2 border border-white/15 rounded-full bg-[#1C1C1E] backdrop-blur-md shadow-md shrink-0">
+                    <img src={APP_ASSETS.popCoin} alt="" className="w-5 h-5 object-contain" />
+                    <span className="text-sm font-semibold text-[#FFFFFF] leading-none">43K</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1169,7 +1173,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               animate={{
                 y: nudgeShiftY,
               }}
-              transition={{ type: 'spring', stiffness: 340, damping: 36 }}
+              transition={showSwipeDownNudge && rawProgress < 0.2 ? { type: 'spring', stiffness: 340, damping: 36 } : { duration: 0 }}
               className="flex-1 flex flex-col overflow-hidden relative bg-[#0D0D0D]"
             >
               {/* Added to cart toast notification */}
@@ -1245,18 +1249,18 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     const activeImageIdx = activeImageIndices[product.id] || 0;
                     const slideScroll = scrollTops[idx] || 0;
                     const rawSlideProgress = Math.min(1, Math.max(0, slideScroll / SCROLL_THRESHOLD));
-                    // Ultra-smooth quintic ease-out curve for this slide: 1 - (1 - t)^4
-                    const slideProgress = 1 - Math.pow(1 - rawSlideProgress, 4);
-                    const currentPaddingH = Math.round(8 * (1 - slideProgress));
-                    const currentPaddingB = Math.round(6 * (1 - slideProgress));
-                    const currentBorderRadius = Math.round(26 * (1 - slideProgress));
+                    // Ultra-smooth sinusoidal ease-out curve for this slide: sin(rawSlideProgress * Math.PI / 2)
+                    const slideProgress = Math.sin((rawSlideProgress * Math.PI) / 2);
+                    const currentPaddingH = (8 * (1 - slideProgress)).toFixed(2);
+                    const currentPaddingB = (6 * (1 - slideProgress)).toFixed(2);
+                    const currentBorderRadius = (26 * (1 - slideProgress)).toFixed(2);
                     const cardInnerWidth = containerWidth - 16;
                     const currentHeroCardWidth = Math.max(240, cardInnerWidth - HERO_PADDING_LEFT - HERO_CARD_GAP - HERO_PEEK_WIDTH);
                     const currentHeroCardHeight = Math.round(currentHeroCardWidth * 1.12);
                     // Rating, heart, sharing icons smoothly shift down from the image on scroll with gentle ease-out curve
-                    const iconShiftY = Math.round(slideProgress * 52);
-                    const iconInset0 = Math.max(2, 14 - slideProgress * 12);
-                    const iconInset = Math.max(-52, -34 - slideProgress * 12);
+                    const iconShiftY = slideProgress * 52;
+                    const iconInset0 = 14 - slideProgress * 12;
+                    const iconInset = -34 - slideProgress * 12;
 
                     // Interpolate card background smoothly using ease-out curve (from #101013/#141418/#18181D to #0D0D0D)
                     const rTop = 13;
@@ -1361,16 +1365,16 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   top: 4,
                                   width: `${currentHeroCardWidth}px`,
                                   height: `${currentHeroCardHeight}px`,
-                                  transform: `translateY(${iconShiftY}px)`,
+                                  transform: `translate3d(0, ${iconShiftY.toFixed(2)}px, 0)`,
                                 }}
                               >
                                 {/* RATING BADGE AT BOTTOM-LEFT */}
                                 <div
                                   style={{
-                                    left: `${iconInset0}px`,
+                                    left: `${iconInset0.toFixed(2)}px`,
                                     bottom: '14px',
-                                    backgroundColor: `rgba(22, 22, 22, ${0.6 + slideProgress * 0.4})`,
-                                    borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress) + 0.15 * slideProgress})`,
+                                    backgroundColor: `rgba(22, 22, 22, ${(0.6 + slideProgress * 0.4).toFixed(3)})`,
+                                    borderColor: `rgba(255, 255, 255, ${(0.1 * (1 - slideProgress) + 0.15 * slideProgress).toFixed(3)})`,
                                   }}
                                   className="absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto border shadow-md backdrop-blur-md"
                                 >
@@ -1383,7 +1387,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                 {/* HEART & SHARE BUTTONS AT BOTTOM-RIGHT */}
                                 <div
                                   style={{
-                                    right: `${iconInset}px`,
+                                    right: `${iconInset.toFixed(2)}px`,
                                     bottom: '14px',
                                   }}
                                   className="absolute flex items-center gap-2 pointer-events-auto"
@@ -1391,8 +1395,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   <button
                                     onClick={(e) => toggleWishlist(product.id, e)}
                                     style={{
-                                      backgroundColor: `rgba(0, 0, 0, ${0.6 * (1 - slideProgress)})`,
-                                      borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress)})`,
+                                      backgroundColor: `rgba(0, 0, 0, ${(0.6 * (1 - slideProgress)).toFixed(3)})`,
+                                      borderColor: `rgba(255, 255, 255, ${(0.1 * (1 - slideProgress)).toFixed(3)})`,
                                     }}
                                     className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 border shadow-md backdrop-blur-md transition-transform"
                                     aria-label="Wishlist"
@@ -1411,8 +1415,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                       }
                                     }}
                                     style={{
-                                      backgroundColor: `rgba(0, 0, 0, ${0.6 * (1 - slideProgress)})`,
-                                      borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress)})`,
+                                      backgroundColor: `rgba(0, 0, 0, ${(0.6 * (1 - slideProgress)).toFixed(3)})`,
+                                      borderColor: `rgba(255, 255, 255, ${(0.1 * (1 - slideProgress)).toFixed(3)})`,
                                     }}
                                     className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 border shadow-md backdrop-blur-md transition-transform"
                                     aria-label="Share"
@@ -1427,7 +1431,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                             {/* Seamless downward clearance shift: as rating/heart/share shift down by iconShiftY, text content shifts down in sync so rating box never overlaps brand name */}
                             <div
                               style={{
-                                transform: `translate3d(0, ${iconShiftY}px, 0)`,
+                                transform: `translate3d(0, ${iconShiftY.toFixed(2)}px, 0)`,
                               }}
                               className="product-content-body flex flex-col w-full max-w-full"
                             >
@@ -1743,10 +1747,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               <div
                 ref={dockContainerRef}
                 style={{
-                  height: `${Math.round(70 * (1 - scrollProgress))}px`,
-                  opacity: 1 - scrollProgress,
-                  transform: `translate3d(0, ${Math.round(scrollProgress * 74)}px, 0)`,
-                  marginTop: `${Math.round(2 * (1 - scrollProgress))}px`,
+                  height: `${(70 * (1 - scrollProgress)).toFixed(2)}px`,
+                  opacity: Math.max(0, 1 - scrollProgress),
+                  transform: `translate3d(0, ${(scrollProgress * 70).toFixed(2)}px, 0)`,
+                  marginTop: `${(2 * (1 - scrollProgress)).toFixed(2)}px`,
                   pointerEvents: scrollProgress > 0.4 ? 'none' : 'auto',
                 }}
                 onPointerDown={handleDockPointerDown}

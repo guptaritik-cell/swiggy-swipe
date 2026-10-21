@@ -40,6 +40,7 @@ interface CoreProductAnimationProps {
   onActiveIndexChange?: (index: number) => void;
   renderScrollDetails?: (product: ProductItem, isScrolledUp: boolean, onExpand?: () => void) => React.ReactNode;
   onScrollDelta?: (scrollTop: number) => void;
+  onDragDelta?: (dragY: number) => void;
   replayTrigger?: number;
 }
 
@@ -51,6 +52,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   onActiveIndexChange,
   renderScrollDetails,
   onScrollDelta,
+  onDragDelta,
   replayTrigger,
 }) => {
   const [internalIndex, setInternalIndex] = useState<number | null>(null);
@@ -213,6 +215,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   // Track container width for precise full-bleed slide tracking
   const rootContainerRef = useRef<HTMLDivElement | null>(null);
   const sliderContainerRef = useRef<HTMLDivElement | null>(null);
+  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null);
   const dockContainerRef = useRef<HTMLDivElement | null>(null);
 
   const [containerWidth, setContainerWidth] = useState<number>(380);
@@ -266,12 +269,25 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   }, []);
 
   const currentScrollTop = scrollTops[safeIndex] || 0;
-  const isScrolled = currentScrollTop > 15;
-  const nudgeShiftY = (showSwipeDownNudge && !isScrolled) ? 8 : 0;
+  // Frame-by-frame continuous scroll interpolation with smooth easing (0 at top, 1 at 90px for gentler settle)
+  const SCROLL_THRESHOLD = 90;
+  const rawProgress = Math.min(1, Math.max(0, currentScrollTop / SCROLL_THRESHOLD));
+  // Ultra-smooth quintic ease-out curve: 1 - (1 - t)^4 for super gentle settle down
+  const scrollProgress = 1 - Math.pow(1 - rawProgress, 4);
+  const isScrolled = scrollProgress > 0.5;
+  const nudgeShiftY = (showSwipeDownNudge && rawProgress < 0.2) ? 8 * (1 - rawProgress * 5) : 0;
+
+  // Header Cart + 43K badge positioning: frame-by-frame smooth gliding from center to right with ease-out
+  // Target Y offset = 0 at full scroll so Cart and 43K pill rest at the exact same vertical level as the Search icon
+  const BADGE_WIDTH = 112; // Cart icon (32px) + gap (8px) + 43K pill (~72px)
+  const centerDeltaX = 14 - (containerWidth - BADGE_WIDTH) / 2;
+  const badgeShiftX = centerDeltaX * (1 - scrollProgress);
+  const badgeShiftY = 16 * (1 - scrollProgress);
 
   const handleOpenProduct = useCallback((index: number, isFromPLP: boolean = false) => {
     setIsClosing(false);
     setDragY(0);
+    onDragDelta?.(0);
     setDragX(0);
     setImageDragX(0);
     setIsDragging(false);
@@ -288,7 +304,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     if (products[index]) {
       onProductSelect?.(products[index]);
     }
-  }, [onActiveIndexChange, onProductSelect, products]);
+  }, [onActiveIndexChange, onProductSelect, onDragDelta, products]);
 
   // Navigate to next product
   const handleNextProduct = useCallback(() => {
@@ -355,10 +371,11 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     setTimeout(() => {
       setIsClosing(false);
       setDragY(0);
+      onDragDelta?.(0);
       setDragX(0);
       setImageDragX(0);
     }, closeDurationMs + 50);
-  }, [onActiveIndexChange, onProductSelect, tuning.closeDuration]);
+  }, [onActiveIndexChange, onProductSelect, onDragDelta, tuning.closeDuration]);
 
   // Keyboard navigation support
   useEffect(() => {
@@ -386,20 +403,197 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     if (e.currentTarget.scrollLeft !== 0) {
       e.currentTarget.scrollLeft = 0;
     }
-    const st = e.currentTarget.scrollTop;
+    const st = Math.max(0, e.currentTarget.scrollTop);
     if (st > 4) {
       lastScrolledDownTimeRef.current = performance.now();
     }
-    setScrollTops(prev => ({ ...prev, [idx]: st }));
+    setScrollTops(prev => {
+      if (prev[idx] === st) return prev;
+      return { ...prev, [idx]: st };
+    });
     if (idx === safeIndex) {
       onScrollDelta?.(st);
     }
   };
 
+  // Persistent touch tracking refs across renders during dragging
+  const touchStartXRef = useRef<number>(0);
+  const touchStartYRef = useRef<number>(0);
+  const touchStartTimeRef = useRef<number>(0);
+  const touchIntentRef = useRef<'pull_down' | 'horizontal_image' | 'horizontal_product' | 'vertical_scroll' | null>(null);
+  const isTouchOverHeroRef = useRef<boolean>(false);
+
+  // Synchronized state refs for stable touch listener execution
+  const currentProductRef = useRef(currentProduct);
+  currentProductRef.current = currentProduct;
+  const safeIndexRef = useRef(safeIndex);
+  safeIndexRef.current = safeIndex;
+  const tuningRef = useRef(tuning);
+  tuningRef.current = tuning;
+  const activeImageIndicesRef = useRef(activeImageIndices);
+  activeImageIndicesRef.current = activeImageIndices;
+  const heroCardWidthRef = useRef(heroCardWidth);
+  heroCardWidthRef.current = heroCardWidth;
+  const containerWidthRef = useRef(containerWidth);
+  containerWidthRef.current = containerWidth;
+
   // ========================================================
-  // Unified Ultra-Smooth Pointer Gestures:
-  // - Image swipe: Swiping on product hero image slides gallery images of the SAME product
-  // - Product swipe: Swiping anywhere other than the image slides to the NEXT/PREV product
+  // Native Mobile Touch Gestures (iOS / Android):
+  // - Prevents iOS Safari from doing native overscroll/rubber-banding on the inner container
+  // - Ensures the WHOLE card (top bar, card body, add to cart, bottom dock) drags down together in unison!
+  // ========================================================
+  useEffect(() => {
+    const container = containerNode || sliderContainerRef.current;
+    if (!container) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      if ((e.target as HTMLElement).closest('.bottom-dock-container')) return;
+
+      const touch = e.touches[0];
+      touchStartXRef.current = touch.clientX;
+      touchStartYRef.current = touch.clientY;
+      touchStartTimeRef.current = performance.now();
+      touchIntentRef.current = null;
+      isTouchOverHeroRef.current = !!(e.target as HTMLElement).closest('.product-hero-carousel');
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length !== 1) return;
+      const touch = e.touches[0];
+      const dx = touch.clientX - touchStartXRef.current;
+      const dy = touch.clientY - touchStartYRef.current;
+      const curSafeIdx = safeIndexRef.current;
+      const scrollEl = slideScrollRefs.current[curSafeIdx];
+      const st = scrollEl ? scrollEl.scrollTop : (scrollTops[curSafeIdx] || 0);
+
+      if (!touchIntentRef.current) {
+        if (Math.hypot(dx, dy) > 6) {
+          if (Math.abs(dx) > Math.abs(dy)) {
+            if (isTouchOverHeroRef.current) {
+              touchIntentRef.current = 'horizontal_image';
+              setIsImageDragging(true);
+            } else {
+              touchIntentRef.current = 'horizontal_product';
+              setIsDragging(true);
+            }
+          } else if (dy > 0 && st <= 1) {
+            touchIntentRef.current = 'pull_down';
+            setIsPulling(true);
+          } else {
+            touchIntentRef.current = 'vertical_scroll';
+          }
+        }
+      }
+
+      if (touchIntentRef.current === 'pull_down') {
+        // Prevent Safari from rubber-banding only the inner scroll container
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        const threshold = tuningRef.current.dragCloseThreshold || 80;
+        const dampedY = dy <= threshold ? dy : threshold + Math.pow(dy - threshold, 0.82);
+        setDragY(dampedY);
+        onDragDelta?.(dampedY);
+      } else if (touchIntentRef.current === 'horizontal_image') {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        const prod = currentProductRef.current;
+        const gallery = prod ? getProductGallery(prod) : [];
+        const currentImgIdx = prod ? (activeImageIndicesRef.current[prod.id] || 0) : 0;
+        let effectiveDx = dx;
+        if ((currentImgIdx === 0 && dx > 0) || (currentImgIdx >= gallery.length - 1 && dx < 0)) {
+          effectiveDx = dx * 0.32;
+        }
+        setImageDragX(effectiveDx);
+      } else if (touchIntentRef.current === 'horizontal_product') {
+        if (e.cancelable) {
+          e.preventDefault();
+        }
+        let effectiveDx = dx;
+        if ((curSafeIdx === 0 && dx > 0) || (curSafeIdx === products.length - 1 && dx < 0)) {
+          effectiveDx = dx * 0.32;
+        }
+        setDragX(effectiveDx);
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      const touch = e.changedTouches[0];
+      if (!touch) return;
+      const totalDx = touch.clientX - touchStartXRef.current;
+      const totalDy = touch.clientY - touchStartYRef.current;
+      const dt = Math.max(1, performance.now() - touchStartTimeRef.current);
+      const vy = totalDy / dt;
+      const vx = totalDx / dt;
+      const curSafeIdx = safeIndexRef.current;
+      const prod = currentProductRef.current;
+
+      if (touchIntentRef.current === 'pull_down') {
+        setIsPulling(false);
+        const threshold = tuningRef.current.dragCloseThreshold || 80;
+        if (totalDy >= threshold || vy > 0.35) {
+          handleCloseProduct();
+        } else {
+          setDragY(0);
+          onDragDelta?.(0);
+        }
+      } else if (touchIntentRef.current === 'horizontal_image') {
+        setIsImageDragging(false);
+        const threshold = Math.min(heroCardWidthRef.current * 0.15, 40);
+        const gallery = prod ? getProductGallery(prod) : [];
+        const currentImgIdx = prod ? (activeImageIndicesRef.current[prod.id] || 0) : 0;
+        let targetImg = currentImgIdx;
+        if ((totalDx < -threshold || vx < -0.25) && currentImgIdx < gallery.length - 1) {
+          targetImg = currentImgIdx + 1;
+        } else if ((totalDx > threshold || vx > 0.25) && currentImgIdx > 0) {
+          targetImg = currentImgIdx - 1;
+        }
+        setImageDragX(0);
+        if (prod && targetImg !== currentImgIdx) {
+          setActiveImageIndices(prev => ({ ...prev, [prod.id]: targetImg }));
+        }
+      } else if (touchIntentRef.current === 'horizontal_product') {
+        setIsDragging(false);
+        const threshold = Math.min(containerWidthRef.current * 0.18, 48);
+        let target = curSafeIdx;
+        if ((totalDx < -threshold || vx < -0.28) && curSafeIdx < products.length - 1) {
+          target = curSafeIdx + 1;
+        } else if ((totalDx > threshold || vx > 0.28) && curSafeIdx > 0) {
+          target = curSafeIdx - 1;
+        }
+        setDragX(0);
+        if (target !== curSafeIdx) {
+          handleOpenProduct(target);
+        }
+      }
+      touchIntentRef.current = null;
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [
+    containerNode,
+    products,
+    handleCloseProduct,
+    handleOpenProduct,
+    getProductGallery,
+    onDragDelta,
+    scrollTops,
+  ]);
+
+  // ========================================================
+  // Unified Desktop Pointer Gestures (Mouse & Trackpad):
   // - Pull-to-close: dragging down at top smoothly collapses card back to PLP
   // ========================================================
   const pointerStartXRef = useRef<number>(0);
@@ -410,6 +604,8 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   const pointerTargetRef = useRef<'image' | 'product' | null>(null);
 
   const handleSliderPointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Touchscreen touch events are handled with native listeners above
+    if (e.pointerType === 'touch') return;
     if (e.button !== 0 && e.pointerType === 'mouse') return;
     if ((e.target as HTMLElement).closest('.bottom-dock-container')) return;
 
@@ -425,11 +621,11 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
   };
 
   const handleSliderPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     if (!isPointerDownRef.current) return;
     const dx = e.clientX - pointerStartXRef.current;
     const dy = e.clientY - pointerStartYRef.current;
     const activeSt = slideScrollRefs.current[safeIndex]?.scrollTop ?? scrollTops[safeIndex] ?? 0;
-    const isSettledAtTop = performance.now() - lastScrolledDownTimeRef.current > 300;
 
     if (!gestureTypeRef.current) {
       if (Math.hypot(dx, dy) > 7) {
@@ -448,8 +644,7 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
           dy > 8 &&
           dy > Math.abs(dx) * 1.2 &&
           activeSt <= 2 &&
-          pointerStartScrollTopRef.current <= 2 &&
-          isSettledAtTop
+          pointerStartScrollTopRef.current <= 2
         ) {
           gestureTypeRef.current = 'pull_down';
           setIsPulling(true);
@@ -480,10 +675,12 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
       const threshold = tuning.dragCloseThreshold || 80;
       const dampedY = dy <= threshold ? dy : threshold + Math.pow(dy - threshold, 0.85);
       setDragY(dampedY);
+      onDragDelta?.(dampedY);
     }
   };
 
   const handleSliderPointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === 'touch') return;
     if (!isPointerDownRef.current) return;
     isPointerDownRef.current = false;
 
@@ -534,15 +731,14 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
     } else if (gestureTypeRef.current === 'pull_down') {
       setIsPulling(false);
       const threshold = tuning.dragCloseThreshold || 80;
-      const isSettledAtTop = performance.now() - lastScrolledDownTimeRef.current > 300;
       if (
         (totalDy >= threshold || dragY >= threshold) &&
-        pointerStartScrollTopRef.current <= 2 &&
-        isSettledAtTop
+        pointerStartScrollTopRef.current <= 2
       ) {
         handleCloseProduct();
       } else {
         setDragY(0);
+        onDragDelta?.(0);
       }
     }
     gestureTypeRef.current = null;
@@ -854,20 +1050,25 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     duration: tuning.closeDuration ?? 0.42,
                     ease: [0.16, 1, 0.3, 1],
                   }
+                : isPulling
+                ? { duration: 0 }
                 : smoothSpringTransition
             }
             animate={{
               y: isClosing ? 0 : dragY,
-              scale: isClosing ? 1 : 1 - Math.min(dragY / 1500, 0.05),
-              borderRadius: isClosing ? 12 : Math.min(24, Math.max(0, dragY * 0.2)),
+              scale: isClosing ? 1 : 1 - Math.min(dragY / 1400, 0.06),
+              borderRadius: isClosing ? 12 : Math.min(28, 12 + dragY * 0.15),
             }}
             className={`absolute inset-0 z-50 flex flex-col bg-[#0D0D0D] overflow-hidden ${
               tuning.enableBackdropBlur ? 'backdrop-blur-xl' : ''
             }`}
+            style={{
+              boxShadow: dragY > 0 ? '0 25px 60px -15px rgba(0,0,0,0.85)' : 'none',
+            }}
           >
             {/* Slide Down Nudge with generous top and bottom margin */}
             <AnimatePresence>
-              {showSwipeDownNudge && !isScrolled && (
+              {showSwipeDownNudge && scrollProgress < 0.2 && (
                 <motion.div
                   key="slide-down-nudge"
                   initial={{ y: -24, opacity: 0 }}
@@ -888,40 +1089,20 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
               )}
             </AnimatePresence>
 
-            {/* FLOATING TOP BAR */}
-            <motion.div
-              initial={false}
-              animate={{
-                backgroundColor: isScrolled ? '#0D0D0D' : 'rgba(13,13,13,0)',
-                borderBottomColor: isScrolled ? '#1F1F1F' : 'rgba(31,31,31,0)',
-                height: isScrolled ? 48 : 58,
-                y: nudgeShiftY,
-                opacity: isClosing ? 0 : 1,
-              }}
-              transition={{
-                backgroundColor: { duration: 0.28, ease: 'easeOut' },
-                borderBottomColor: { duration: 0.28, ease: 'easeOut' },
-                height: { duration: 0.28, ease: 'linear' },
-                y: { duration: 0.2, ease: 'linear' },
-                opacity: { duration: 0.28, ease: 'easeOut' },
-              }}
+            {/* FLOATING TOP BAR - Anchored inside the modal card so it drags down together */}
+            <div
               className="absolute top-0 left-0 right-0 z-40 flex items-center justify-between px-3.5 border-b pointer-events-none"
               style={{
-                pointerEvents: isScrolled ? 'auto' : 'none',
+                backgroundColor: `rgba(13, 13, 13, ${scrollProgress})`,
+                borderBottomColor: `rgba(38, 38, 38, ${scrollProgress})`,
+                height: 52,
+                transform: `translate3d(0, ${nudgeShiftY}px, 0)`,
+                opacity: isClosing ? 0 : 1,
+                pointerEvents: scrollProgress > 0.3 ? 'auto' : 'none',
               }}
             >
               {/* Left slot: Back arrow */}
-              <motion.button
-                initial={false}
-                animate={{
-                  opacity: isScrolled ? 1 : 0,
-                  x: isScrolled ? 0 : -8,
-                  pointerEvents: isScrolled ? 'auto' : 'none',
-                }}
-                transition={{
-                  opacity: { duration: 0.24, ease: 'easeOut' },
-                  x: { duration: 0.24, ease: 'easeOut' },
-                }}
+              <button
                 onClick={() => {
                   if (currentScrollTop > 20 && slideScrollRefs.current[safeIndex]) {
                     slideScrollRefs.current[safeIndex]?.scrollTo({
@@ -932,70 +1113,56 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     handleCloseProduct();
                   }
                 }}
-                className="w-8 h-8 flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0 pointer-events-auto"
+                style={{
+                  opacity: scrollProgress,
+                  transform: `translate3d(${-12 * (1 - scrollProgress)}px, 0, 0)`,
+                  pointerEvents: scrollProgress > 0.3 ? 'auto' : 'none',
+                }}
+                className="w-8 h-8 flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
                 aria-label="Back"
               >
                 <ChevronLeft size={24} className="text-[#FFFFFF]" />
-              </motion.button>
+              </button>
 
-              {/* Center to Top-Right: Cart + POPcoin Badge */}
-              <motion.div
-                layout
-                transition={{
-                  layout: { duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: [0.16, 1, 0.3, 1] },
+              {/* Center to Top-Right: Cart + POPcoin Badge - Smooth continuous frame-by-frame gliding with ease-out */}
+              <div
+                style={{
+                  transform: `translate3d(${badgeShiftX}px, ${badgeShiftY}px, 0)`,
+                  pointerEvents: 'auto',
                 }}
-                className={`flex items-center gap-2 pointer-events-auto ${
-                  isScrolled ? 'ml-auto mt-0' : 'mx-auto mt-10'
-                }`}
+                className="flex items-center gap-2 ml-auto mt-1"
               >
-                <motion.button
-                  initial={false}
-                  animate={{
-                    opacity: isScrolled ? 1 : 0,
-                    width: isScrolled ? 32 : 0,
-                    pointerEvents: isScrolled ? 'auto' : 'none',
+                <button
+                  style={{
+                    opacity: scrollProgress,
+                    width: `${Math.round(32 * scrollProgress)}px`,
+                    pointerEvents: scrollProgress > 0.3 ? 'auto' : 'none',
                   }}
-                  transition={{
-                    opacity: { duration: tuning.searchIconFadeDuration ?? 0.32, ease: 'easeOut' },
-                    width: { duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: [0.16, 1, 0.3, 1] },
-                  }}
-                  className="overflow-hidden h-8 flex items-center justify-center text-white"
+                  className="overflow-hidden w-8 h-8 flex items-center justify-center text-white shrink-0"
                   aria-label="Search"
                 >
                   <Search size={20} className="text-white" />
-                </motion.button>
+                </button>
 
-                <motion.button
-                  initial={false}
-                  animate={{
-                    backgroundColor: isScrolled ? 'rgba(0,0,0,0)' : '#1C1C1E',
-                    borderColor: isScrolled ? 'rgba(255,255,255,0)' : 'rgba(255,255,255,0.1)',
-                    boxShadow: isScrolled ? 'none' : '0 4px 6px -1px rgba(0,0,0,0.2)',
+                <button
+                  style={{
+                    backgroundColor: `rgba(28, 28, 30, ${1 - scrollProgress})`,
+                    borderColor: `rgba(255, 255, 255, ${0.1 * (1 - scrollProgress)})`,
+                    boxShadow: `0 4px 6px -1px rgba(0, 0, 0, ${0.2 * (1 - scrollProgress)})`,
                   }}
-                  transition={{
-                    duration: tuning.cartBadgeShiftDuration ?? 0.18,
-                    ease: 'easeOut',
-                  }}
-                  className="w-8 h-8 rounded-full border flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
+                  className="w-8 h-8 rounded-full border border-transparent flex items-center justify-center text-[#FFFFFF] active:scale-95 transition-transform shrink-0"
                   aria-label="Cart"
                 >
-                  <ShoppingCart size={isScrolled ? 16 : 16} className="text-[#FFFFFF]" />
-                </motion.button>
+                  <ShoppingCart size={16} className="text-[#FFFFFF]" />
+                </button>
 
                 {/* POP Box matching exactly the cart icon box height (h-8 = 32px) */}
                 <div className="h-7 flex items-center gap-1 px-2 border border-white/15 rounded-full bg-[#1C1C1E] backdrop-blur-md shadow-md shrink-0">
-                  <img src={APP_ASSETS.popCoin} alt="" className="w-4.5 h-4.5 object-contain" />
+                  <img src={APP_ASSETS.popCoin} alt="" className="w-5 h-5 object-contain" />
                   <span className="text-sm font-semibold text-[#FFFFFF] leading-none">43K</span>
                 </div>
-              </motion.div>
-
-              <motion.div
-                initial={false}
-                animate={{ width: isScrolled ? 0 : 32 }}
-                transition={{ duration: tuning.cartBadgeShiftDuration ?? 0.18, ease: 'linear' }}
-                className="shrink-0 pointer-events-none overflow-hidden"
-              />
-            </motion.div>
+              </div>
+            </div>
 
             {/* MAIN PDP HORIZONTAL PRODUCT SLIDER & VERTICAL SCROLL BODY */}
             <motion.div
@@ -1027,7 +1194,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
 
               {/* HORIZONTAL MULTI-PRODUCT SLIDER CONTAINER */}
               <div
-                ref={sliderContainerRef}
+                ref={(el) => {
+                  sliderContainerRef.current = el;
+                  setContainerNode(el);
+                }}
                 onPointerDown={handleSliderPointerDown}
                 onPointerMove={handleSliderPointerMove}
                 onPointerUp={handleSliderPointerUp}
@@ -1074,34 +1244,49 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                     const gallery = getProductGallery(product);
                     const activeImageIdx = activeImageIndices[product.id] || 0;
                     const slideScroll = scrollTops[idx] || 0;
-                    const isSlideScrolled = slideScroll > 15;
+                    const rawSlideProgress = Math.min(1, Math.max(0, slideScroll / SCROLL_THRESHOLD));
+                    // Ultra-smooth quintic ease-out curve for this slide: 1 - (1 - t)^4
+                    const slideProgress = 1 - Math.pow(1 - rawSlideProgress, 4);
+                    const currentPaddingH = Math.round(8 * (1 - slideProgress));
+                    const currentPaddingB = Math.round(6 * (1 - slideProgress));
+                    const currentBorderRadius = Math.round(26 * (1 - slideProgress));
                     const cardInnerWidth = containerWidth - 16;
                     const currentHeroCardWidth = Math.max(240, cardInnerWidth - HERO_PADDING_LEFT - HERO_CARD_GAP - HERO_PEEK_WIDTH);
                     const currentHeroCardHeight = Math.round(currentHeroCardWidth * 1.12);
-                    // Rating, heart, sharing icons smoothly shift down from the image on scroll (linear curve shifting)
-                    const iconShiftY = Math.min(slideScroll * 0.85, 52);
-                    const iconInset0 = Math.max(2,14 - (slideScroll / 40) * 12);
-                    const iconInset = Math.max(-52, -34 - (slideScroll / 40) * 12);
-                    const isScrolledDown = slideScroll > 60;
+                    // Rating, heart, sharing icons smoothly shift down from the image on scroll with gentle ease-out curve
+                    const iconShiftY = Math.round(slideProgress * 52);
+                    const iconInset0 = Math.max(2, 14 - slideProgress * 12);
+                    const iconInset = Math.max(-52, -34 - slideProgress * 12);
+
+                    // Interpolate card background smoothly using ease-out curve (from #101013/#141418/#18181D to #0D0D0D)
+                    const rTop = 13;
+                    const gTop = 13;
+                    const bTop = 13;
+                    const rMid1 = Math.round(16 - 3 * slideProgress);
+                    const gMid1 = Math.round(16 - 3 * slideProgress);
+                    const bMid1 = Math.round(19 - 6 * slideProgress);
+                    const rMid2 = Math.round(20 - 7 * slideProgress);
+                    const gMid2 = Math.round(20 - 7 * slideProgress);
+                    const bMid2 = Math.round(24 - 11 * slideProgress);
+                    const rBot = Math.round(24 - 11 * slideProgress);
+                    const gBot = Math.round(24 - 11 * slideProgress);
+                    const bBot = Math.round(29 - 16 * slideProgress);
+                    const cardBg = `linear-gradient(180deg, rgb(${rTop},${gTop},${bTop}) 0%, rgb(${rMid1},${gMid1},${bMid1}) 25%, rgb(${rMid2},${gMid2},${bMid2}) 60%, rgb(${rBot},${gBot},${bBot}) 100%)`;
 
                     return (
                       <div
                         key={`product-slide-${product.id}-${idx}`}
                         style={{
                           width: `${containerWidth}px`,
-                          padding: isSlideScrolled ? '0px' : '0 8px 6px 8px',
-                          transition: 'padding 0.28s linear',
+                          padding: `0 ${currentPaddingH}px ${currentPaddingB}px ${currentPaddingH}px`,
                         }}
                         className="h-full flex flex-col shrink-0 relative select-none"
                       >
                         {/* PRODUCT CARD BODY (Curved border, padding, gradient background) */}
                         <div
                           style={{
-                            borderRadius: isSlideScrolled ? '0px' : '26px',
-                            background: isSlideScrolled
-                              ? '#0D0D0D'
-                              : 'linear-gradient(180deg, #0D0D0D 0%, #101013 25%, #141418 60%, #18181D 100%)',
-                            transition: 'border-radius 0.28s linear, background 0.28s ease-out',
+                            borderRadius: `${currentBorderRadius}px`,
+                            background: cardBg,
                           }}
                           className="h-full flex flex-col flex-1 relative overflow-hidden select-none"
                         >
@@ -1109,8 +1294,13 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                           <div
                             ref={(el) => { slideScrollRefs.current[idx] = el; }}
                             onScroll={(e) => handleSlideScroll(e, idx)}
-                            className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pt-12 pb-4 overscroll-contain w-full max-w-full"
-                            style={{ touchAction: 'pan-y', overflowX: 'clip' }}
+                            className="flex-1 overflow-y-auto overflow-x-hidden no-scrollbar pt-12 pb-4 w-full max-w-full"
+                            style={{
+                              touchAction: 'pan-y',
+                              overflowX: 'clip',
+                              overscrollBehaviorY: 'none',
+                              WebkitOverflowScrolling: 'touch',
+                            }}
                           >
                             {/* PRODUCT HERO IMAGE CAROUSEL WITH ADJACENT PEEK OF SAME PRODUCT */}
                             <div
@@ -1179,12 +1369,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   style={{
                                     left: `${iconInset0}px`,
                                     bottom: '14px',
+                                    backgroundColor: `rgba(22, 22, 22, ${0.6 + slideProgress * 0.4})`,
+                                    borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress) + 0.15 * slideProgress})`,
                                   }}
-                                  className={`absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
-                                    isScrolledDown
-                                      ? 'bg-[#161616] border border-[#262626] shadow-md'
-                                      : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
-                                  }`}
+                                  className="absolute flex items-center gap-1.5 px-2.5 py-1 rounded-[8px] select-none pointer-events-auto border shadow-md backdrop-blur-md"
                                 >
                                   <Star size={11} className="fill-white text-white" />
                                   <span className="font-semibold text-white text-[12px] leading-none">
@@ -1202,15 +1390,15 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                 >
                                   <button
                                     onClick={(e) => toggleWishlist(product.id, e)}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
-                                      isScrolledDown
-                                        ? 'bg-transparent border-transparent shadow-none'
-                                        : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
-                                    }`}
+                                    style={{
+                                      backgroundColor: `rgba(0, 0, 0, ${0.6 * (1 - slideProgress)})`,
+                                      borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress)})`,
+                                    }}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 border shadow-md backdrop-blur-md transition-transform"
                                     aria-label="Wishlist"
                                   >
                                     <Heart
-                                      size={isScrolledDown ? 18 : 18}
+                                      size={18}
                                       className={isLiked ? "fill-red-500 text-red-500" : "text-white"}
                                     />
                                   </button>
@@ -1222,23 +1410,24 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                         navigator.share({ title: product.title, url: window.location.href }).catch(() => {});
                                       }
                                     }}
-                                    className={`w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 transition-[background-color,border-color,box-shadow] duration-200 ease-out ${
-                                      isScrolledDown
-                                        ? 'bg-transparent border-transparent shadow-none'
-                                        : 'bg-black/60 backdrop-blur-md border border-white/10 shadow-md'
-                                    }`}
+                                    style={{
+                                      backgroundColor: `rgba(0, 0, 0, ${0.6 * (1 - slideProgress)})`,
+                                      borderColor: `rgba(255, 255, 255, ${0.1 * (1 - slideProgress)})`,
+                                    }}
+                                    className="w-8 h-8 rounded-full flex items-center justify-center text-white active:scale-90 border shadow-md backdrop-blur-md transition-transform"
                                     aria-label="Share"
                                   >
-                                    <Share size={isScrolledDown ? 18 : 18} className="text-white" />
+                                    <Share size={18} className="text-white" />
                                   </button>
                                 </div>
                               </div>
                             </div>
 
                             {/* CONTENT BELOW IMAGE (STAGGERED ENTRANCE ANIMATION: BOTTOM -> TOP) */}
+                            {/* Seamless downward clearance shift: as rating/heart/share shift down by iconShiftY, text content shifts down in sync so rating box never overlaps brand name */}
                             <div
                               style={{
-                                transform: `translateY(${Math.min(slideScroll * 0.75, 46)}px)`,
+                                transform: `translate3d(0, ${iconShiftY}px, 0)`,
                               }}
                               className="product-content-body flex flex-col w-full max-w-full"
                             >
@@ -1515,11 +1704,10 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                                   }
                                 : { duration: 0 }
                             }
-                            className={`px-4 pt-1.5 pb-2.5 z-30 shrink-0 pointer-events-auto ${
-                              isSlideScrolled
-                                ? 'bg-gradient-to-t from-[#0D0D0D] via-[#0D0D0D]/95 to-transparent'
-                                : 'bg-gradient-to-t from-[#18181D] via-[#18181D]/95 to-transparent'
-                            }`}
+                            className="px-4 pt-1.5 pb-2.5 z-30 shrink-0 pointer-events-auto"
+                            style={{
+                              background: `linear-gradient(to top, rgb(${rBot},${gBot},${bBot}) 0%, rgba(${rBot},${gBot},${bBot}, 0.95) 70%, transparent 100%)`,
+                            }}
                           >
                             <motion.button
                               onClick={() => handleAddToCart(product)}
@@ -1551,16 +1739,15 @@ export const CoreProductAnimation: React.FC<CoreProductAnimationProps> = ({
                 </motion.div>
               </div>
 
-              {/* BOTTOM SCROLLING DOCK (Product Selector) */}
+              {/* BOTTOM SCROLLING DOCK (Product Selector) - Smooth frame-by-frame tuck on scroll */}
               <div
                 ref={dockContainerRef}
                 style={{
-                  height: isScrolled ? 0 : 70,
-                  opacity: isScrolled ? 0 : 1,
-                  transform: isScrolled ? 'translateY(36px)' : 'translateY(0px)',
-                  marginTop: isScrolled ? 0 : 2,
-                  pointerEvents: isScrolled ? 'none' : 'auto',
-                  transition: 'height 0.28s linear, margin-top 0.28s linear, opacity 0.28s cubic-bezier(0.16, 1, 0.3, 1), transform 0.28s cubic-bezier(0.16, 1, 0.3, 1)',
+                  height: `${Math.round(70 * (1 - scrollProgress))}px`,
+                  opacity: 1 - scrollProgress,
+                  transform: `translate3d(0, ${Math.round(scrollProgress * 74)}px, 0)`,
+                  marginTop: `${Math.round(2 * (1 - scrollProgress))}px`,
+                  pointerEvents: scrollProgress > 0.4 ? 'none' : 'auto',
                 }}
                 onPointerDown={handleDockPointerDown}
                 onPointerMove={handleDockPointerMove}

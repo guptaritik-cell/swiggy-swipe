@@ -179,6 +179,7 @@ export default function App() {
                 onActiveIndexChange={(idx) => setActiveProductIndex(idx >= 0 ? idx : null)}
                 onProductSelect={handleProductSelect}
                 onScrollDelta={(delta) => setScrollDelta(delta)}
+                onDragDelta={(y) => setDragY(y)}
                 replayTrigger={replayTrigger}
                 renderScrollDetails={(activeProd, isScrolledUp, onExpand) => (
                   <ProductScrollDetailsContent
